@@ -59,7 +59,8 @@ Each module is a Gradle project pair: `:<m>:api` (Kotlin interfaces, DTOs, event
 
 Pool C isolation (D-031): `lifa-ai` cannot reach pool B or `pg-a`. It receives plan data only from
 `lifa-core`'s redaction endpoint (consent checked, ID and account numbers removed, FR-AI-002/005), and its only
-egress is the LLM provider endpoint, through an Azure Firewall FQDN rule.
+egress is the LLM endpoint (Azure OpenAI in South Africa North, or the OpenAI API fallback, D-036), through an Azure
+Firewall FQDN rule.
 
 Pool B isolation (FRS 8, 9.1):
 - Separate AKS node pool with taints. Only pool-B workloads have Managed HSM `wrapKey/unwrapKey` rights, through Workload Identity.

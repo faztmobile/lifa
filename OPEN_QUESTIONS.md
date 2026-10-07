@@ -65,9 +65,9 @@ Sources: FRS v0.1 (7 Oct 2026), 25-screen UI reference, the engineering brief, a
 
 | # | Question | Proposed default | Status |
 |---|---|---|---|
-| A10 | **LLM provider** for the AI adviser (FR-AI). NFR-PRV-001 allows AI calls outside South Africa only under a POPIA section 72 transfer agreement, with no training and no retention (FR-AI-005). Which provider and contract? | Built behind `LlmProvider` with a sandbox (D-029). Choose before `release.ai_adviser` is switched on. | OPEN |
-| A11 | Activation SLA and Operations staffing (FRS 13.5). FR-ACT-003 requires review within 2 business days with four-eyes. | Back-office queue alerts at 1 business day (NFR-OBS-001) | OPEN |
-| B8 | **Marketplace payments (FR-MKT-005):** Lifa must not hold client funds. Proposed: Paystack split payments with a subaccount per professional, so funds settle directly to the professional. Needs Paystack and legal confirmation. | Paystack subaccounts | OPEN |
+| A10 | LLM provider for the AI adviser | OpenAI models, preferably through Azure OpenAI in South Africa North (D-036). Remaining: confirm the chosen model is available in that region, otherwise contract the OpenAI API with zero data retention plus a s72 agreement. | CLOSED (route to confirm) |
+| A11 | Activation SLA and staffing | Two Operations reviewers; alert at 1 business day (D-038). A backup reviewer is recommended. | CLOSED |
+| B8 | Marketplace payments | Paystack split payments with subaccounts (D-037). Legal confirmation still advised. | CLOSED |
 | B9 | Professional listing subscriptions (FR-MKT-008) | Paystack subscriptions on the web portal | PROPOSED |
 | B10 | Courier and safe-custody partner (add-on, FRS 2.4) | Manual operations queue behind `CourierProvider` until contracted | DEFERRED |
 | B11 | Account aggregator (FR-AST-011, Could) | Interface only (D-035) | DEFERRED |

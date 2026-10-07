@@ -118,7 +118,7 @@ stateDiagram-v2
 
 | ID | Threat | Controls |
 |---|---|---|
-| I-1 | Plan data leaks to the model provider | Consent-gated (FR-AI-002); a redaction API removes ID and account numbers and names beyond first names (FR-AI-005); no-training, no-retention contract under POPIA s72 (NFR-PRV-001, A10); pool C egress only to the provider |
+| I-1 | Plan data leaks to the model provider | Consent-gated (FR-AI-002); a redaction API removes ID and account numbers and names beyond first names (FR-AI-005); Azure OpenAI in South Africa North preferred, otherwise OpenAI API with zero data retention and a POPIA s72 agreement (D-036); pool C egress only to that one endpoint |
 | I-2 | Prompt injection through user content | Uploaded-document text is never sent to the model; user questions are wrapped as data; retrieval only from the curated knowledge base (FRS 9.3) |
 | I-3 | Answer amounts to legal, tax or product advice | Guardrail classifier on every answer part (FR-AI-003); blocked parts become "see a professional"; 300-question evaluation gate (FRS 13.2) |
 | I-4 | Harm to a bereaved or distressed user | Crisis-language detection before the model; support resources, no product prompts (FR-AI-006) |
@@ -138,7 +138,8 @@ stateDiagram-v2
 | Risk | Owner decision needed |
 |---|---|
 | Activation controls unproven until the red-team gate | Accepted: built now, switched on only after the gate (D-026, D-027) |
-| LLM provider and transfer agreement not chosen | OPEN_QUESTIONS A10; `release.ai_adviser` stays off |
-| Marketplace payment model needs Paystack and legal confirmation | OPEN_QUESTIONS B8 |
+| AI prompts could leave South Africa if Azure OpenAI in SA North doesn't offer the chosen model | D-036: then OpenAI API only with zero data retention + s72 agreement; `release.ai_adviser` stays off until contracted |
+| Paystack split model not yet confirmed by legal | D-037 |
+| Only two activation reviewers: absence halts activations; collusion between the only two staff | D-038: backup reviewer recommended; Sentinel alert on every approval; Compliance Officer independent of reviewers; red-team gate tests insider collusion |
 | An owner on a reduced-trust device cannot use the vault | Accepted: graceful degradation (06 §6.3) |
 | SIM-swap checks depend on per-network API coverage | OPEN_QUESTIONS B2 |
