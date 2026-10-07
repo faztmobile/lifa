@@ -1,0 +1,37 @@
+# Android (GMS + HMS flavours). First CI run is also the first compile: Google Maven is not reachable from the
+# authoring environment (OPEN_QUESTIONS E, 02-monorepo).
+name: android
+on:
+  pull_request:
+    paths: ['clients/android/**', 'design/**', 'api/**', '.github/workflows/android.yml']
+  push:
+    branches: [main]
+    paths: ['clients/android/**']
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: clients/android
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit, Compose UI (Robolectric) and screenshot tests
+        run: ./gradlew :core:design:testDebugUnitTest :core:design:recordRoborazziDebug
+      - name: Assemble both store flavours
+        run: ./gradlew :app:assembleGmsDebug :app:assembleHmsDebug :app:lintGmsDebug
+      - name: hms flavour has no Google services
+        run: ./gradlew :app:checkHmsHasNoGms
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-gallery
+          path: |
+            clients/android/core/design/build/outputs/roborazzi
+            clients/android/core/design/build/reports/tests
+            clients/android/app/build/outputs/apk

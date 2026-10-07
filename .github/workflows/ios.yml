@@ -1,0 +1,33 @@
+name: ios
+on:
+  pull_request:
+    paths: ['clients/ios/**', 'design/**', '.github/workflows/ios.yml']
+  push:
+    branches: [main]
+    paths: ['clients/ios/**']
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: clients/ios
+jobs:
+  build-test:
+    runs-on: macos-15
+    env:
+      XCODEGEN_VERSION: '2.44.1' # [VERIFY] pinned XcodeGen release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen (pinned)
+        run: |
+          curl -fsSL -o xcodegen.zip "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          unzip -q xcodegen.zip -d "$RUNNER_TEMP/xcodegen"
+          echo "$RUNNER_TEMP/xcodegen/xcodegen/bin" >> "$GITHUB_PATH"
+      - run: xcodegen generate
+      - name: LifaDesign package tests
+        run: xcodebuild test -scheme LifaDesign -destination 'platform=iOS Simulator,name=iPhone 16' -skipPackagePluginValidation
+        working-directory: clients/ios/LifaDesign
+      - name: Gallery XCUITests (accessibility audit, dark, AX-XXXL)
+        run: xcodebuild test -project Lifa.xcodeproj -scheme Lifa -destination 'platform=iOS Simulator,name=iPhone 16' -resultBundlePath "$RUNNER_TEMP/ui.xcresult"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ios-ui-results, path: '${{ runner.temp }}/ui.xcresult' }

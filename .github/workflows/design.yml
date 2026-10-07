@@ -1,0 +1,22 @@
+# Design tokens: contrast gate and generated-output drift (step 2, D-040).
+name: design
+on:
+  pull_request:
+    paths: ['design/**', 'package.json', 'package-lock.json', 'clients/*/**/generated/**', '.github/workflows/design.yml']
+  push:
+    branches: [main]
+    paths: ['design/**']
+permissions:
+  contents: read
+jobs:
+  tokens:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - run: npm ci
+      - name: WCAG contrast (light and dark)
+        run: npm run tokens:test
+      - name: Generated themes, icons and fonts are up to date
+        run: npm run tokens:check

@@ -1,0 +1,23 @@
+# HarmonyOS NEXT needs DevEco command-line tools and a signing profile, so it runs on a self-hosted runner (D-010).
+name: harmony
+on:
+  pull_request:
+    paths: ['clients/harmony/**', 'design/**', '.github/workflows/harmony.yml']
+  push:
+    branches: [main]
+    paths: ['clients/harmony/**']
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: clients/harmony
+jobs:
+  build-test:
+    runs-on: [self-hosted, harmony-deveco]
+    steps:
+      - uses: actions/checkout@v4
+      - run: ohpm install
+      - name: Build HAR and HAP (ArkTS strict mode)
+        run: hvigorw assembleHap --mode module -p product=default -p buildMode=debug --no-daemon
+      - name: ArkUI tests on emulator/device
+        run: hvigorw onDeviceTest -p module=entry -p coverage=false --no-daemon

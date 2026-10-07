@@ -8,6 +8,8 @@ on:
     paths: ['api/**', 'tools/traceability.py']
 permissions:
   contents: read
+env:
+  REDOCLY_TELEMETRY: 'off' # no third-party telemetry from CI
 jobs:
   lint:
     runs-on: ubuntu-24.04

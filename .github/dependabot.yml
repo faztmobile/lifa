@@ -1,0 +1,19 @@
+# Keeps pinned versions current. Android AGP/Compose and the GitHub Actions tags are the first priority:
+# they could not be verified from the authoring environment (D-041).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /clients/web
+    schedule: { interval: weekly }
+  - package-ecosystem: gradle
+    directory: /clients/android
+    schedule: { interval: weekly }
+  - package-ecosystem: swift
+    directory: /clients/ios/LifaDesign
+    schedule: { interval: weekly }
