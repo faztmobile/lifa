@@ -284,6 +284,34 @@ paths:
         '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
         '409': { $ref: '../components/common.yaml#/responses/Conflict' }
 
+  willTrustClauses:
+    put:
+      operationId: setTrustClauses
+      tags: [Will]
+      summary: Add testamentary trust clauses (minor or special-needs beneficiary trusts) from approved templates (Family)
+      x-lifa-fr: [FR-WIL-015, FR-WIL-007, FR-WIL-009]
+      x-lifa-entitlement: wil.trust_clauses
+      parameters:
+        - $ref: '#/parameters/WillId'
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clauses]
+              properties:
+                clauses: { type: array, items: { $ref: '#/schemas/TrustClause' } }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillWrite' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
   documentJob:
     get:
       operationId: getJob
@@ -379,6 +407,15 @@ schemas:
       fullName: { type: string, maxLength: 160 }
       personId: { type: [string, 'null'], format: uuid, description: When the witness is in the family tree }
       spousePersonId: { type: [string, 'null'], format: uuid }
+  TrustClause:
+    type: object
+    required: [kind, beneficiaryPersonIds, trusteePersonIds, vestingAge]
+    properties:
+      kind: { type: string, enum: [minor_beneficiary, special_needs] }
+      beneficiaryPersonIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+      trusteePersonIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+      vestingAge: { type: [integer, 'null'], minimum: 18, maximum: 35, description: 'Minor trusts only, for example 25' }
+      templateClauseId: { type: string, readOnly: true, description: Attorney-approved clause used (NFR-MNT-002) }
   WillExecution:
     type: object
     required: [signedOn, witnesses, originalLocation]
@@ -413,6 +450,7 @@ schemas:
           allocations: { type: array, items: { $ref: '#/schemas/Allocation' } }
           allocatedPercent: { type: number }
           bequests: { type: array, items: { $ref: '#/schemas/Bequest' } }
+          trustClauses: { type: array, items: { $ref: '#/schemas/TrustClause' } }
           guardianship: { $ref: '#/schemas/Guardianship' }
           executor: { $ref: '#/schemas/ExecutorNomination' }
           alternateExecutor: { $ref: '#/schemas/ExecutorNomination' }

@@ -1,0 +1,153 @@
+# Activation requests (family side). Module: lifecycle (lifa-lifecycle, pool B). FR-ACT-*.
+# Behind release flag release.activation (D-026). Operations review in the back-office spec.
+# The owner can cancel at any time before activation completes by logging in (FR-DMS-006, FRS 12.2).
+
+paths:
+  activationRequests:
+    get:
+      operationId: listMyActivationRequests
+      tags: [Activation]
+      summary: Activation requests the caller has made
+      x-lifa-fr: [FR-ACT-001]
+      responses:
+        '200':
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/ActivationRequest' } }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+    post:
+      operationId: requestActivation
+      tags: [Activation]
+      summary: A nominated executor or a verifier requests activation, uploading a death record (or an incapacity document) and their own ID
+      description: >-
+        The requester must hold a nominated role for the estate (FR-ACT-002). Death: a death certificate or abridged death
+        record. Incapacity (FR-ACT-007): a medical practitioner's letter or a court order; only items whose release rule
+        names incapacity are released. Evidence goes to the lifecycle evidence store, never the owner's vault.
+        Opens or joins a case for Lifa Operations review (FR-ACT-003). The response reveals no estate content.
+      x-lifa-fr: [FR-ACT-001, FR-ACT-002, FR-ACT-007, FR-ACT-008]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [request, evidence, requesterId]
+              properties:
+                request:
+                  type: object
+                  required: [estateId, kind]
+                  properties:
+                    estateId: { type: string, format: uuid, description: From GET /v1/shared/estates }
+                    kind: { type: string, enum: [death, incapacity] }
+                    dateOfEvent: { $ref: '../components/common.yaml#/schemas/Date' }
+                evidence:
+                  description: Death certificate or abridged death record; or medical letter or court order
+                  type: string
+                  contentMediaType: application/octet-stream
+                requesterId:
+                  description: The requester's own ID document
+                  type: string
+                  contentMediaType: application/octet-stream
+            encoding:
+              request:
+                contentType: application/json
+      responses:
+        '202':
+          description: Received
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ActivationRequest' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  activationRequest:
+    get:
+      operationId: getActivationRequest
+      tags: [Activation]
+      summary: The requester's progress view (request received, documents checked, 72-hour notice, workspace opens)
+      x-lifa-fr: [FR-ACT-003, FR-ACT-004, FR-ACT-005]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Request
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ActivationRequest' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  releasedToMe:
+    get:
+      operationId: getReleaseNotice
+      tags: [Activation]
+      summary: What has been released to the caller from an activated estate, and why (FRS 12.2 activation disclosure)
+      x-lifa-fr: [FR-ACT-005, FR-PRM-001]
+      parameters:
+        - name: estateId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Release notice
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [estateState, items]
+                properties:
+                  estateState: { $ref: './estate.yaml#/schemas/EstateState' }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [itemType, itemId, label, rule]
+                      properties:
+                        itemType: { type: string }
+                        itemId: { type: string, format: uuid }
+                        label: { type: string }
+                        rule: { type: string, examples: ['Released after executor approval'] }
+                        awaitingExecutorApproval: { type: boolean }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+schemas:
+  ActivationStep:
+    type: object
+    required: [key, status, label]
+    properties:
+      key: { type: string, enum: [received, documents_checked, notice_period, workspace_open] }
+      status: { type: string, enum: [done, current, pending] }
+      label: { type: string }
+      detail: { type: [string, 'null'], examples: ['Two reviewers, usually within 2 working days'] }
+      at: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  ActivationRequest:
+    type: object
+    required: [id, estateId, kind, status, steps, ownerGivenName]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      estateId: { type: string, format: uuid }
+      ownerGivenName: { type: string }
+      kind: { type: string, enum: [death, incapacity] }
+      status: { type: string, enum: [received, under_review, more_evidence_needed, notice_period, activated, cancelled, rejected] }
+      steps: { type: array, items: { $ref: '#/schemas/ActivationStep' } }
+      evidence:
+        type: array
+        items:
+          type: object
+          required: [kind, status]
+          properties:
+            kind: { type: string, enum: [death_certificate, abridged_death_record, medical_letter, court_order, requester_id] }
+            status: { type: string, enum: [uploaded, accepted, rejected] }
+            note: { type: [string, 'null'], examples: ['Matches the named executor'] }
+      message: { type: string, examples: ["We're sorry for your loss, Sipho."] }
+      supportContentKey: { type: string, description: Grief and support resources (OPEN_QUESTIONS D13) }

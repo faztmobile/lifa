@@ -1,0 +1,179 @@
+# AI Estate Adviser (education only). Module: ai (lifa-ai, pool C, D-031/D-033). FR-AI-*.
+# Behind release flag release.ai_adviser (D-026). Never gives a legal opinion, tax opinion or product
+# recommendation (FR-AI-003). Plan data is used only with the ai_personalisation consent (FR-AI-002).
+
+paths:
+  adviser:
+    get:
+      operationId: getAdviserStatus
+      tags: [Adviser]
+      summary: Monthly quota, personalisation consent and suggested questions
+      x-lifa-fr: [FR-AI-002, FR-AI-004]
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questionsLeft, monthlyLimit, personalisationConsented, suggestions, disclosure]
+                properties:
+                  questionsLeft: { type: integer, examples: [47] }
+                  monthlyLimit: { type: integer, description: 'From entitlement ai.questions_per_month (5, 50 or 200)' }
+                  resetsOn: { $ref: '../components/common.yaml#/schemas/Date' }
+                  personalisationConsented: { type: boolean }
+                  suggestions: { type: array, items: { type: string }, examples: [['Do I need a trust?', 'What does an executor do?']] }
+                  disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  conversations:
+    get:
+      operationId: listConversations
+      tags: [Adviser]
+      summary: Conversations (redacted; kept 90 days, FRS 12.3)
+      x-lifa-fr: [FR-AI-001]
+      responses:
+        '200':
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, updatedAt]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        updatedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+    post:
+      operationId: startConversation
+      tags: [Adviser]
+      summary: Start a conversation
+      x-lifa-fr: [FR-AI-001]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Conversation' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  conversation:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getConversation
+      tags: [Adviser]
+      summary: Conversation with messages
+      x-lifa-fr: [FR-AI-001]
+      responses:
+        '200':
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Conversation' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    delete:
+      operationId: deleteConversation
+      tags: [Adviser]
+      summary: Delete a conversation now
+      x-lifa-fr: [FR-AI-005]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  conversationMessages:
+    post:
+      operationId: askAdviser
+      tags: [Adviser]
+      summary: Ask a question. Counts toward the monthly quota; returns 403 entitlement_limit when it is used up.
+      description: >-
+        Pipeline: crisis-language check first (FR-AI-006: support resources, no product prompts), then retrieval over the
+        curated SA knowledge base (FR-AI-001), optional minimised plan context (FR-AI-002/005), the model call, and a guardrail
+        classification of every answer part (FR-AI-003). Uploaded-document text is never sent (prompt-injection mitigation, FRS 9.3).
+      x-lifa-fr: [FR-AI-001, FR-AI-002, FR-AI-003, FR-AI-004, FR-AI-005, FR-AI-006]
+      x-lifa-entitlement: ai.questions_per_month
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 1000 }
+      responses:
+        '200':
+          description: Answer
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Answer' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '429': { $ref: '../components/common.yaml#/responses/TooManyRequests' }
+
+schemas:
+  AnswerPart:
+    type: object
+    required: [classification, text]
+    properties:
+      classification:
+        description: FR-AI-003
+        type: string
+        enum: [education, observation, see_a_professional, support]
+      label: { type: string, examples: [EDUCATION, FROM YOUR PLAN] }
+      text: { type: string }
+  Citation:
+    type: object
+    required: [title, contentKey]
+    properties:
+      title: { type: string, examples: ['Marriage types explained'] }
+      contentKey: { type: string }
+  Answer:
+    type: object
+    required: [messageId, parts, citations, questionsLeft, disclosure]
+    properties:
+      messageId: { type: string, format: uuid }
+      parts: { type: array, items: { $ref: '#/schemas/AnswerPart' } }
+      citations: { type: array, items: { $ref: '#/schemas/Citation' } }
+      links:
+        type: array
+        items:
+          type: object
+          required: [label, target]
+          properties:
+            label: { type: string, examples: ['Your liquidity check', 'Find one'] }
+            target: { type: string, examples: ['lifa://liquidity', 'lifa://professionals?category=conveyancer'] }
+      crisisResponse: { type: boolean, description: True when FR-AI-006 support resources were returned instead of an answer }
+      questionsLeft: { type: integer }
+      disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+  Message:
+    type: object
+    required: [id, role, at]
+    properties:
+      id: { type: string, format: uuid }
+      role: { type: string, enum: [user, adviser] }
+      text: { type: [string, 'null'] }
+      answer: { oneOf: [{ $ref: '#/schemas/Answer' }, { type: 'null' }] }
+      at: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  Conversation:
+    type: object
+    required: [id, messages]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      title: { type: [string, 'null'] }
+      messages: { type: array, items: { $ref: '#/schemas/Message' } }

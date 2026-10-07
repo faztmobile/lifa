@@ -225,7 +225,7 @@ paths:
       operationId: listMyVerificationCases
       tags: [Check-in]
       summary: Reports made about the owner. Any owner login cancels open cases, and this shows who reported and when (AT-ACT-01).
-      x-lifa-fr: [FR-DMS-006]
+      x-lifa-fr: [FR-DMS-006, FR-ACT-004]
       responses:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
         '200':
@@ -272,7 +272,7 @@ paths:
       description: >-
         On Family, a death report needs two verifiers, or one verifier plus a death certificate (FR-DMS-005, AT-DMS-01).
         Certificates are uploaded to the lifecycle evidence store (pool B), not to the owner's vault.
-        In Release A a case can be reviewed but never activates (D-023).
+        Activation follows the FR-ACT process once release.activation is on (D-027).
       x-lifa-fr: [FR-DMS-004, FR-DMS-005]
       parameters:
         - name: requestId
@@ -404,7 +404,7 @@ schemas:
     required: [id, status, openedAt, reporters]
     properties:
       id: { $ref: '../components/common.yaml#/schemas/Id' }
-      status: { type: string, enum: [open, awaiting_evidence, under_review, cancelled_by_owner, rejected] }
+      status: { type: string, enum: [open, awaiting_evidence, under_review, notice_period, cancelled_by_owner, rejected] }
       openedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
       cancelledAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
       reporters:

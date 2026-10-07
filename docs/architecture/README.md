@@ -1,4 +1,4 @@
-# Lifa architecture: Release A (R1 + R2)
+# Lifa architecture: Release A (whole FRS, R1–R4)
 
 Step 1 deliverable. Status: **draft for owner review**.
 Source of truth: Lifa FRS v0.1 (7 Oct 2026). Requirement IDs are binding.
@@ -35,7 +35,7 @@ entitlement set.
 flowchart LR
   subgraph Devices
     AND[Android GMS/HMS] --- IOS[iOS] --- HOS[HarmonyOS NEXT]
-    WEB[Web SPA] --> BFF[web-bff]
+    WEB[Web SPA: owners, executors, professionals] --> BFF[web-bff]
     BO[Back-office web] --> BOBFF[backoffice-bff]
   end
   AND & IOS & HOS & BFF & BOBFF --> FD[Front Door + WAF] --> APIM[API Management]
@@ -44,6 +44,12 @@ flowchart LR
   APIM --> COM[lifa-commerce]
   APIM --> PROT[lifa-protected]
   APIM --> LIFE[lifa-lifecycle]
+  APIM --> EXE[lifa-executor]
+  APIM --> MKT[lifa-marketplace]
+  APIM --> AI[lifa-ai]
+  AI -->|redacted plan data| CORE
+  AI --> LLM[(LLM provider, s72 contract)]
+  EXE --> PGB
   CORE & ID & COM & PROT & LIFE --> AUD[lifa-audit]
   CORE & COM & LIFE -. "authorise()" .-> PROT
   PROT --> HSM[(Managed HSM)]

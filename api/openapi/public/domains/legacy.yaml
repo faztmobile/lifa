@@ -1,0 +1,343 @@
+# Digital legacy (module: digital, lifa-executor, pool B) and trust planner (module: trust, lifa-marketplace).
+# FR-DIG-*, FR-TRS-*. Digital legacy never holds credentials (FR-DIG-002, FR-VLT-011).
+# Trust planner outputs only "consider professional advice" prompts, never a recommendation to form a trust (FR-TRS-002).
+
+paths:
+  digitalAssets:
+    get:
+      operationId: listDigitalAssets
+      tags: [Digital legacy]
+      summary: Digital assets with wishes and release rules (Plus 10, Family unlimited)
+      x-lifa-fr: [FR-DIG-001, FR-DIG-002]
+      x-lifa-entitlement: dig.max_items
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, notice]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/DigitalAsset' } }
+                  notice: { type: string, examples: ['Lifa never stores passwords or seed phrases.'] }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    post:
+      operationId: createDigitalAsset
+      tags: [Digital legacy]
+      summary: Record a digital asset. Text is checked for credentials and seed phrases (FR-VLT-011).
+      x-lifa-fr: [FR-DIG-001, FR-DIG-002, FR-VLT-011]
+      x-lifa-entitlement: dig.max_items
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/DigitalAssetInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/DigitalAssetWrite' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  digitalAsset:
+    parameters:
+      - name: digitalAssetId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getDigitalAsset
+      tags: [Digital legacy]
+      summary: Get a digital asset, with a link to platform guidance (FR-DIG-004)
+      x-lifa-fr: [FR-DIG-002, FR-DIG-004]
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/DigitalAsset' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    patch:
+      operationId: updateDigitalAsset
+      tags: [Digital legacy]
+      summary: Update a digital asset
+      x-lifa-fr: [FR-DIG-002, FR-VLT-011]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/DigitalAssetInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/DigitalAssetWrite' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+    delete:
+      operationId: deleteDigitalAsset
+      tags: [Digital legacy]
+      summary: Delete a digital asset
+      x-lifa-fr: [FR-DIG-001]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  sealedInstruction:
+    parameters:
+      - name: digitalAssetId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: storeSealedInstruction
+      tags: [Digital legacy]
+      summary: Store an instruction encrypted on the device; the key is split among holders by Shamir secret sharing (Family, D-034)
+      description: >-
+        Lifa receives only ciphertext and the holders' names (never a share). Shares are printed or shown as QR codes on the
+        device for the owner to hand over. Reconstruction happens on a holder's device after release.
+      x-lifa-fr: [FR-DIG-003]
+      x-lifa-step-up: release.write
+      x-lifa-entitlement: dig.sealed_instruction
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ciphertext, algorithm, threshold, holders]
+              properties:
+                ciphertext: { type: string, description: 'Base64url, AES-256-GCM, at most 16 KB' }
+                algorithm: { type: string, const: 'AES-256-GCM+SSS-GF256' }
+                threshold: { type: integer, minimum: 2, maximum: 5 }
+                holders:
+                  type: array
+                  minItems: 2
+                  maxItems: 7
+                  items:
+                    type: object
+                    required: [personId]
+                    properties:
+                      personId: { type: string, format: uuid }
+                      shareFingerprint: { type: string, description: 'SHA-256 of the share, for verification on reconstruction' }
+      responses:
+        '200':
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [storedAt, threshold, holderCount]
+                properties:
+                  storedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+                  threshold: { type: integer }
+                  holderCount: { type: integer }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    get:
+      operationId: getSealedInstruction
+      tags: [Digital legacy]
+      summary: Ciphertext for the owner, or for a holder after release
+      x-lifa-fr: [FR-DIG-003]
+      x-lifa-step-up: vault.read
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      responses:
+        '200':
+          description: Ciphertext
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ciphertext, algorithm, threshold]
+                properties:
+                  ciphertext: { type: string }
+                  algorithm: { type: string }
+                  threshold: { type: integer }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  trustQuestionnaire:
+    get:
+      operationId: getTrustQuestionnaire
+      tags: [Trusts]
+      summary: Trust suitability questionnaire and saved answers (Family)
+      x-lifa-fr: [FR-TRS-002]
+      x-lifa-entitlement: trs.questionnaire
+      responses:
+        '200':
+          description: Questionnaire
+          content:
+            application/json:
+              schema: { $ref: './score.yaml#/schemas/Assessment' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    put:
+      operationId: submitTrustQuestionnaire
+      tags: [Trusts]
+      summary: Submit answers; returns "consider professional advice" prompts only
+      x-lifa-fr: [FR-TRS-002, FR-FAM-007]
+      x-lifa-entitlement: trs.questionnaire
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [definitionVersion, answers]
+              properties:
+                definitionVersion: { type: string }
+                answers: { type: array, items: { $ref: './score.yaml#/schemas/Answer' } }
+      responses:
+        '200':
+          description: Prompts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [prompts, disclosure]
+                properties:
+                  prompts:
+                    type: array
+                    items:
+                      type: object
+                      required: [title, explanation, contentKey]
+                      properties:
+                        title: { type: string, examples: ['Consider professional advice about a trust for Lerato'] }
+                        explanation: { type: string }
+                        contentKey: { type: string }
+                        findProfessionalCategory: { type: [string, 'null'], examples: [fiduciary] }
+                  disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  trusts:
+    get:
+      operationId: listTrusts
+      tags: [Trusts]
+      summary: Existing trusts the owner has recorded (Family)
+      x-lifa-fr: [FR-TRS-003]
+      x-lifa-entitlement: trs.records
+      responses:
+        '200':
+          description: Trusts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Trust' } }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    post:
+      operationId: createTrust
+      tags: [Trusts]
+      summary: Record an existing trust (name, Master's reference, trustees, beneficiaries, deed and letters of authority in the vault)
+      x-lifa-fr: [FR-TRS-003]
+      x-lifa-entitlement: trs.records
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/TrustInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Trust' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  trust:
+    parameters:
+      - name: trustId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateTrust
+      tags: [Trusts]
+      summary: Update a trust record
+      x-lifa-fr: [FR-TRS-003]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/TrustInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Trust' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    delete:
+      operationId: deleteTrust
+      tags: [Trusts]
+      summary: Delete a trust record (vault documents are kept)
+      x-lifa-fr: [FR-TRS-003]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+schemas:
+  DigitalCategory:
+    description: FR-DIG-001
+    type: string
+    enum: [crypto_holding, hardware_wallet, exchange_account, domain, online_business, saas_account, email_account, social_media, cloud_photos, intellectual_property, other]
+  DigitalWish:
+    type: string
+    enum: [transfer, memorialise, delete, archive]
+  DigitalAssetInput:
+    type: object
+    required: [category, platform, wish]
+    properties:
+      category: { $ref: '#/schemas/DigitalCategory' }
+      platform: { type: string, maxLength: 80, examples: [Bitcoin] }
+      accountIdentifierLast: { type: [string, 'null'], maxLength: 8, description: 'Only the last few characters; stored masked (FR-DIG-002)' }
+      wish: { $ref: '#/schemas/DigitalWish' }
+      wishDetail: { type: [string, 'null'], maxLength: 300, examples: ['To Lerato at 18', 'After 12 months'] }
+      beneficiaryPersonId: { type: [string, 'null'], format: uuid }
+      recoveryLocation: { type: [string, 'null'], maxLength: 300, description: 'Where the family finds access details, never the details themselves' }
+  DigitalAsset:
+    allOf:
+      - $ref: '#/schemas/DigitalAssetInput'
+      - type: object
+        required: [id, maskedIdentifier, readOnly]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+          maskedIdentifier: { type: [string, 'null'], examples: ['wallet ending …x9Fq'] }
+          guidanceContentKey: { type: [string, 'null'], description: FR-DIG-004 }
+          releaseRule: { oneOf: [{ $ref: './access.yaml#/schemas/ReleaseRule' }, { type: 'null' }] }
+          hasSealedInstruction: { type: boolean }
+          readOnly: { type: boolean }
+  DigitalAssetWrite:
+    allOf:
+      - $ref: '#/schemas/DigitalAsset'
+      - type: object
+        properties:
+          warnings: { type: array, items: { $ref: '../components/common.yaml#/schemas/Warning' } }
+  TrustInput:
+    type: object
+    required: [name, kind]
+    properties:
+      name: { type: string, maxLength: 160 }
+      kind: { type: string, enum: [inter_vivos, testamentary, family, minor_beneficiary, special_trust, other] }
+      mastersReference: { type: [string, 'null'], maxLength: 40 }
+      trusteePersonIds: { type: array, items: { type: string, format: uuid } }
+      beneficiaryPersonIds: { type: array, items: { type: string, format: uuid } }
+      deedDocumentId: { type: [string, 'null'], format: uuid }
+      lettersOfAuthorityDocumentId: { type: [string, 'null'], format: uuid }
+  Trust:
+    allOf:
+      - $ref: '#/schemas/TrustInput'
+      - type: object
+        required: [id]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }

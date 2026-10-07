@@ -332,7 +332,7 @@ paths:
       operationId: getEstateValidation
       tags: [Family]
       summary: Allocation validation (FR-FAM-005, all tiers) and conflict detection (FR-FAM-006, Plus)
-      x-lifa-fr: [FR-FAM-005, FR-FAM-006]
+      x-lifa-fr: [FR-FAM-005, FR-FAM-006, FR-FAM-007]
       responses:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
         '200':
@@ -483,6 +483,75 @@ paths:
       responses:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
         '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  walletGoals:
+    get:
+      operationId: listGoals
+      tags: [Wallet]
+      summary: Household goals with progress (Family)
+      x-lifa-fr: [FR-WAL-004]
+      x-lifa-entitlement: wal.goals
+      responses:
+        '200':
+          description: Goals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Goal' } }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    post:
+      operationId: createGoal
+      tags: [Wallet]
+      summary: Add a goal
+      x-lifa-fr: [FR-WAL-004]
+      x-lifa-entitlement: wal.goals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/GoalInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Goal' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  walletGoal:
+    parameters:
+      - name: goalId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateGoal
+      tags: [Wallet]
+      summary: Update a goal or its progress
+      x-lifa-fr: [FR-WAL-004]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/GoalInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Goal' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    delete:
+      operationId: deleteGoal
+      tags: [Wallet]
+      summary: Delete a goal
+      x-lifa-fr: [FR-WAL-004]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
 
 parameters:
   PersonId:
@@ -742,17 +811,37 @@ schemas:
     properties:
       code:
         type: string
-        enum: [residue_not_100, duplicate_full_bequest, allocation_to_deceased, missing_alternate, minor_direct_heir, witness_is_beneficiary, unequal_children_no_reason, dependant_no_provision, guardian_missing]
+        enum: [residue_not_100, duplicate_full_bequest, allocation_to_deceased, missing_alternate, minor_direct_heir, witness_is_beneficiary, unequal_children_no_reason, dependant_no_provision, guardian_missing, blended_family, special_needs_beneficiary]
       severity: { type: string, enum: [blocking, warning] }
       message: { type: string }
       personIds: { type: array, items: { type: string, format: uuid } }
       assetIds: { type: array, items: { type: string, format: uuid } }
+      contentKey: { type: [string, 'null'], description: 'Educational content and trust planner link (FR-FAM-007)' }
   ValidationReport:
     type: object
     required: [findings, conflictDetectionAvailable]
     properties:
       findings: { type: array, items: { $ref: '#/schemas/ValidationFinding' } }
       conflictDetectionAvailable: { type: boolean, description: FR-FAM-006 (Plus) }
+  GoalInput:
+    type: object
+    required: [kind, title, target]
+    properties:
+      kind: { type: string, enum: [education, retirement, emergency_fund, property, business_succession, intergenerational_wealth] }
+      title: { type: string, maxLength: 80, examples: ["Lerato's university"] }
+      target: { $ref: '../components/common.yaml#/schemas/Money' }
+      targetDate: { type: [string, 'null'], format: date }
+      current: { $ref: '../components/common.yaml#/schemas/Money' }
+      stepsDone: { type: [integer, 'null'] }
+      stepsTotal: { type: [integer, 'null'] }
+  Goal:
+    allOf:
+      - $ref: '#/schemas/GoalInput'
+      - type: object
+        required: [id, progressPercent]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+          progressPercent: { type: number }
   Household:
     type: object
     required: [id, members]

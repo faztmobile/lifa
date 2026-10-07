@@ -136,7 +136,7 @@ paths:
       operationId: getContent
       tags: [Config]
       summary: Plain-language content and mandatory disclosures (Grade 8 reading level, NFR-USE-002)
-      x-lifa-fr: [NFR-USE-002, FR-WIL-018]
+      x-lifa-fr: [NFR-USE-002, FR-WIL-018, FR-TRS-001, FR-DIG-004, FR-FAM-007]
       security: []
       parameters:
         - name: key
@@ -161,7 +161,7 @@ paths:
 schemas:
   NotificationCategory:
     type: string
-    enum: [security, verification, check_in, reminders, life_events, document_expiry, legacy_review, product_updates, marketing]
+    enum: [security, verification, check_in, reminders, life_events, document_expiry, legacy_review, estate_updates, bookings, product_updates, marketing]
   NotificationPreferences:
     type: object
     required: [categories]

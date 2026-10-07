@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   summary: Client-facing API for the Lifa iOS, Android (GMS/HMS), HarmonyOS NEXT and web clients.
   description: |
-    Release A (FRS R1 + R2). Contract first (D-003): clients are generated from this spec.
+    Release A (whole FRS, R1–R4; D-026). Later-release capabilities are behind release flags and return 403 `release_disabled` when off. Contract first (D-003): clients are generated from this spec.
 
     Conventions (docs/architecture/04-api-contracts.md):
     - Every operation lists the requirements it serves in `x-lifa-fr`.
@@ -52,6 +52,13 @@ tags:
   - { name: Liquidity, description: 'Liquidity engine (FR-LIQ)' }
   - { name: Notifications, description: 'Preferences, push, inbox (FR-NTF)' }
   - { name: Config, description: 'Client config and content' }
+  - { name: Activation, description: 'Activation requests (FR-ACT)' }
+  - { name: Executor, description: 'Executor workspace (FR-EXE)' }
+  - { name: Digital legacy, description: 'Digital assets (FR-DIG)' }
+  - { name: Trusts, description: 'Trust planner (FR-TRS)' }
+  - { name: Marketplace, description: 'Find and book professionals (FR-MKT)' }
+  - { name: Professional, description: 'Professional workspace, web portal (FR-MKT, FR-WIL-016)' }
+  - { name: Adviser, description: 'AI Estate Adviser, education only (FR-AI)' }
 paths:
   # identity
   /v1/me:
@@ -107,6 +114,8 @@ paths:
     $ref: './domains/commerce.yaml#/paths/invoices'
   /v1/invoices/{invoiceId}/pdf:
     $ref: './domains/commerce.yaml#/paths/invoicePdf'
+  /v1/group-codes/redemptions:
+    $ref: './domains/commerce.yaml#/paths/groupCodeRedemptions'
   # score
   /v1/assessment:
     $ref: './domains/score.yaml#/paths/assessment'
@@ -155,6 +164,10 @@ paths:
     $ref: './domains/estate.yaml#/paths/walletSnapshots'
   /v1/wallet/balance-update:
     $ref: './domains/estate.yaml#/paths/walletBalanceUpdate'
+  /v1/wallet/goals:
+    $ref: './domains/estate.yaml#/paths/walletGoals'
+  /v1/wallet/goals/{goalId}:
+    $ref: './domains/estate.yaml#/paths/walletGoal'
   # will
   /v1/wills:
     $ref: './domains/will.yaml#/paths/wills'
@@ -176,6 +189,12 @@ paths:
     $ref: './domains/will.yaml#/paths/willExecution'
   /v1/wills/{willId}/current-signed:
     $ref: './domains/will.yaml#/paths/willCurrentSigned'
+  /v1/wills/{willId}/trust-clauses:
+    $ref: './domains/will.yaml#/paths/willTrustClauses'
+  /v1/wills/{willId}/attorney-review:
+    $ref: './domains/marketplace.yaml#/paths/willAttorneyReview'
+  /v1/wills/{willId}/attorney-review/decisions:
+    $ref: './domains/marketplace.yaml#/paths/willAttorneyReviewDecision'
   /v1/jobs/{jobId}:
     $ref: './domains/will.yaml#/paths/documentJob'
   # vault
@@ -250,6 +269,8 @@ paths:
     $ref: './domains/simulation.yaml#/paths/scenarios'
   /v1/scenarios/{scenarioId}:
     $ref: './domains/simulation.yaml#/paths/scenario'
+  /v1/scenarios/{scenarioId}/promote:
+    $ref: './domains/simulation.yaml#/paths/scenarioPromote'
   /v1/scenarios/comparison:
     $ref: './domains/simulation.yaml#/paths/scenarioComparison'
   /v1/liquidity:
@@ -267,6 +288,105 @@ paths:
     $ref: './domains/platform.yaml#/paths/clientConfig'
   /v1/content/{key}:
     $ref: './domains/platform.yaml#/paths/content'
+  # activation
+  /v1/activation-requests:
+    $ref: './domains/activation.yaml#/paths/activationRequests'
+  /v1/activation-requests/{requestId}:
+    $ref: './domains/activation.yaml#/paths/activationRequest'
+  /v1/shared/estates/{estateId}/released:
+    $ref: './domains/activation.yaml#/paths/releasedToMe'
+  # executor
+  /v1/estate-files:
+    $ref: './domains/executor.yaml#/paths/estateFiles'
+  /v1/estate-files/{estateFileId}:
+    $ref: './domains/executor.yaml#/paths/estateFile'
+  /v1/estate-files/{estateFileId}/tasks:
+    $ref: './domains/executor.yaml#/paths/estateFileTasks'
+  /v1/estate-files/{estateFileId}/tasks/{taskId}:
+    $ref: './domains/executor.yaml#/paths/estateFileTask'
+  /v1/estate-files/{estateFileId}/deadlines:
+    $ref: './domains/executor.yaml#/paths/estateFileDeadlines'
+  /v1/estate-files/{estateFileId}/inventory:
+    $ref: './domains/executor.yaml#/paths/estateFileInventory'
+  /v1/estate-files/{estateFileId}/inventory/{itemId}:
+    $ref: './domains/executor.yaml#/paths/estateFileInventoryItem'
+  /v1/estate-files/{estateFileId}/institutions:
+    $ref: './domains/executor.yaml#/paths/estateFileInstitutions'
+  /v1/estate-files/{estateFileId}/letters:
+    $ref: './domains/executor.yaml#/paths/estateFileLetters'
+  /v1/estate-files/{estateFileId}/claims:
+    $ref: './domains/executor.yaml#/paths/estateFileClaims'
+  /v1/estate-files/{estateFileId}/claims/{claimId}:
+    $ref: './domains/executor.yaml#/paths/estateFileClaim'
+  /v1/estate-files/{estateFileId}/updates:
+    $ref: './domains/executor.yaml#/paths/estateFileUpdates'
+  /v1/estate-files/{estateFileId}/members:
+    $ref: './domains/executor.yaml#/paths/estateFileMembers'
+  /v1/estate-files/{estateFileId}/members/{memberId}:
+    $ref: './domains/executor.yaml#/paths/estateFileMember'
+  /v1/estate-files/{estateFileId}/exports:
+    $ref: './domains/executor.yaml#/paths/estateFileExports'
+  /v1/estate-files/{estateFileId}/distribution-complete:
+    $ref: './domains/executor.yaml#/paths/estateFileClosure'
+  /v1/estate-files/{estateFileId}/retention-extensions:
+    $ref: './domains/executor.yaml#/paths/estateFileRetention'
+  /v1/shared/estates/{estateId}/beneficiary-view:
+    $ref: './domains/executor.yaml#/paths/beneficiaryView'
+  # legacy (digital, trusts)
+  /v1/digital-assets:
+    $ref: './domains/legacy.yaml#/paths/digitalAssets'
+  /v1/digital-assets/{digitalAssetId}:
+    $ref: './domains/legacy.yaml#/paths/digitalAsset'
+  /v1/digital-assets/{digitalAssetId}/sealed-instruction:
+    $ref: './domains/legacy.yaml#/paths/sealedInstruction'
+  /v1/trusts/questionnaire:
+    $ref: './domains/legacy.yaml#/paths/trustQuestionnaire'
+  /v1/trusts:
+    $ref: './domains/legacy.yaml#/paths/trusts'
+  /v1/trusts/{trustId}:
+    $ref: './domains/legacy.yaml#/paths/trust'
+  # marketplace
+  /v1/professionals:
+    $ref: './domains/marketplace.yaml#/paths/professionals'
+  /v1/professionals/{professionalId}:
+    $ref: './domains/marketplace.yaml#/paths/professional'
+  /v1/bookings:
+    $ref: './domains/marketplace.yaml#/paths/bookings'
+  /v1/bookings/{bookingId}:
+    $ref: './domains/marketplace.yaml#/paths/booking'
+  /v1/bookings/{bookingId}/bundles:
+    $ref: './domains/marketplace.yaml#/paths/bookingBundles'
+  /v1/bookings/{bookingId}/bundles/{bundleId}:
+    $ref: './domains/marketplace.yaml#/paths/bookingBundle'
+  /v1/bookings/{bookingId}/payment:
+    $ref: './domains/marketplace.yaml#/paths/bookingPayment'
+  /v1/bookings/{bookingId}/review:
+    $ref: './domains/marketplace.yaml#/paths/bookingReview'
+  /v1/professional/profile:
+    $ref: './domains/marketplace.yaml#/paths/proProfile'
+  /v1/professional/evidence:
+    $ref: './domains/marketplace.yaml#/paths/proEvidence'
+  /v1/professional/listing-subscription:
+    $ref: './domains/marketplace.yaml#/paths/proListingSubscription'
+  /v1/professional/bookings:
+    $ref: './domains/marketplace.yaml#/paths/proBookings'
+  /v1/professional/bookings/{bookingId}:
+    $ref: './domains/marketplace.yaml#/paths/proBooking'
+  /v1/professional/will-reviews/{reviewId}:
+    $ref: './domains/marketplace.yaml#/paths/proWillReview'
+  /v1/professional/will-reviews/{reviewId}/comments:
+    $ref: './domains/marketplace.yaml#/paths/proWillReviewComments'
+  /v1/professional/will-reviews/{reviewId}/approval:
+    $ref: './domains/marketplace.yaml#/paths/proWillReviewApproval'
+  # ai
+  /v1/adviser:
+    $ref: './domains/ai.yaml#/paths/adviser'
+  /v1/adviser/conversations:
+    $ref: './domains/ai.yaml#/paths/conversations'
+  /v1/adviser/conversations/{conversationId}:
+    $ref: './domains/ai.yaml#/paths/conversation'
+  /v1/adviser/conversations/{conversationId}/messages:
+    $ref: './domains/ai.yaml#/paths/conversationMessages'
 components:
   securitySchemes:
     oidc: { $ref: './components/common.yaml#/securitySchemes/oidc' }

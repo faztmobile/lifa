@@ -6,8 +6,9 @@ info:
   description: |
     Staff authenticate with the Entra workforce tenant through backoffice-bff. Access is just-in-time: a role is
     activated through Privileged Identity Management with approval and is time-boxed (FRS 9.2).
-    Staff see **metadata only, never document content** (FRS 9.2). Every call is audited.
-    Release A has no activation endpoints. Verification cases can be reviewed and closed but never activate (D-023).
+    Staff see **metadata only, never document content** (FRS 9.2), unless an activation case grants evidence access
+    under four-eyes control. Every call is audited (FR-ACT-008).
+    Activation (FR-ACT) runs here once release.activation is on (D-026, D-027).
   license:
     name: Proprietary
     identifier: LicenseRef-WZDRY-Proprietary
@@ -21,6 +22,9 @@ tags:
   - { name: Quarantine, description: 'Rejected and held uploads (FR-VLT-008, FR-VLT-011)' }
   - { name: Cases, description: "Dead man's switch verification cases (FR-DMS-004..006)" }
   - { name: Audit, description: 'Ledger integrity (NFR-AUD-001)' }
+  - { name: Marketplace, description: 'Professional vetting and review moderation (FR-MKT-002, FR-MKT-006)' }
+  - { name: Content, description: 'Publishing compliance-approved content (NFR-MNT-001)' }
+  - { name: Release, description: 'Release flags (D-026)' }
 paths:
   /v1/support/accounts:
     get:
@@ -193,7 +197,7 @@ paths:
       operationId: recordCaseDecision
       tags: [Cases]
       summary: Record a reviewer decision. Closing a case needs two different reviewers. Release A cannot activate (D-023).
-      x-lifa-fr: [FR-DMS-004, FR-DMS-005]
+      x-lifa-fr: [FR-DMS-004, FR-DMS-005, FR-ACT-003, FR-ACT-004, FR-ACT-008]
       parameters:
         - $ref: '#/components/parameters/CaseId'
       requestBody:
@@ -204,7 +208,21 @@ paths:
               type: object
               required: [decision, rationale]
               properties:
-                decision: { type: string, enum: [request_more_evidence, reject_report, escalate_to_compliance, hold_pending_activation_release] }
+                decision:
+                  description: >-
+                    approve_activation needs two distinct reviewers (FR-ACT-003) and then starts the 72-hour notice to every
+                    owner channel (FR-ACT-004). Activation completes automatically when the notice ends without an owner login.
+                  type: string
+                  enum: [request_more_evidence, reject_report, escalate_to_compliance, approve_activation]
+                checklist:
+                  description: Documented review checklist (FR-ACT-003)
+                  type: array
+                  items:
+                    type: object
+                    required: [item, passed]
+                    properties:
+                      item: { type: string }
+                      passed: { type: boolean }
                 rationale: { type: string, minLength: 10 }
       responses:
         '200':
@@ -213,6 +231,220 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/VerificationCase' }
         '409': { $ref: '#/components/responses/Problem' }
+  /v1/cases/{caseId}/evidence-access:
+    post:
+      operationId: requestEvidenceAccess
+      tags: [Cases]
+      summary: Request time-boxed access to case evidence. A second staff member must approve before any view.
+      x-lifa-fr: [FR-ACT-003, FRS-9.2]
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10 }
+      responses:
+        '202': { description: Awaiting second approver }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/cases/{caseId}/evidence-access/{grantId}/approval:
+    post:
+      operationId: approveEvidenceAccess
+      tags: [Cases]
+      summary: Approve another staff member's evidence-access request (approver must differ from requester)
+      x-lifa-fr: [FR-ACT-003, FRS-9.2]
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: 'Approved; access expires after 30 minutes' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/cases/{caseId}/notice-waiver:
+    post:
+      operationId: waiveActivationNotice
+      tags: [Cases]
+      summary: Compliance Officer waives the 72-hour notice for a documented reason (Compliance role only)
+      x-lifa-fr: [FR-ACT-004]
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 20 }
+      responses:
+        '200':
+          description: Waived; activation proceeds
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationCase' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /v1/professionals:
+    get:
+      operationId: listProfessionalsForVetting
+      tags: [Marketplace]
+      summary: Professionals awaiting verification or annual re-verification
+      x-lifa-fr: [FR-MKT-002]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, reverification_due, verified, rejected, suspended] }
+      responses:
+        '200':
+          description: Professionals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, practiceName, category, status]
+                      properties:
+                        id: { type: string, format: uuid }
+                        practiceName: { type: string }
+                        category: { type: string }
+                        status: { type: string }
+                        registrationNumbers: { type: object, properties: { lpc: { type: [string, 'null'] }, fsp: { type: [string, 'null'] }, body: { type: [string, 'null'] } } }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/professionals/{professionalId}/verification:
+    post:
+      operationId: decideProfessionalVerification
+      tags: [Marketplace]
+      summary: Verify or reject registration evidence against the LPC, FSCA or professional-body register
+      x-lifa-fr: [FR-MKT-002, FR-MKT-007]
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, registerCheckedOn]
+              properties:
+                decision: { type: string, enum: [verify, reject, suspend] }
+                registerCheckedOn: { type: string, format: date }
+                note: { type: string }
+      responses:
+        '200': { description: Recorded }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/reviews:
+    get:
+      operationId: listReviewsForModeration
+      tags: [Marketplace]
+      summary: Reviews awaiting moderation
+      x-lifa-fr: [FR-MKT-006]
+      responses:
+        '200':
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, professionalId, rating]
+                      properties:
+                        id: { type: string, format: uuid }
+                        professionalId: { type: string, format: uuid }
+                        rating: { type: integer }
+                        text: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/reviews/{reviewId}/moderation:
+    post:
+      operationId: moderateReview
+      tags: [Marketplace]
+      summary: Publish or reject a review. Listing tier never affects this (FR-MKT-008).
+      x-lifa-fr: [FR-MKT-006, FR-MKT-008]
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [publish, reject] }
+                reason: { type: string }
+      responses:
+        '200': { description: Recorded }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/content/{key}/publications:
+    post:
+      operationId: publishContent
+      tags: [Content]
+      summary: Publish a content version (knowledge base, platform guidance, explainers) after compliance approval
+      x-lifa-fr: [FR-AI-001, FR-DIG-004, NFR-MNT-001]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, approvedBy]
+              properties:
+                version: { type: string }
+                approvedBy: { type: string }
+      responses:
+        '200': { description: Published }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/release-flags/{flag}:
+    put:
+      operationId: setReleaseFlag
+      tags: [Release]
+      summary: Switch a release flag on or off. Needs the gate evidence reference and Compliance approval (D-026).
+      x-lifa-fr: [FRS-13.2]
+      parameters:
+        - name: flag
+          in: path
+          required: true
+          schema: { type: string, pattern: '^release\.[a-z_]+$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled, gateEvidenceRef, approvedBy]
+              properties:
+                enabled: { type: boolean }
+                gateEvidenceRef: { type: string }
+                approvedBy: { type: string }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Problem' }
   /v1/audit/verification:
     get:
       operationId: verifyAuditChain
@@ -291,14 +523,16 @@ components:
         pendingClosure: { type: boolean }
     CaseStatus:
       type: string
-      enum: [open, awaiting_evidence, under_review, escalated, cancelled_by_owner, rejected, held]
+      enum: [open, awaiting_evidence, under_review, escalated, notice_period, activated, cancelled_by_owner, rejected]
     VerificationCase:
       type: object
       required: [id, estateId, trigger, status, openedAt, reports, decisions]
       properties:
         id: { type: string, format: uuid }
         estateId: { type: string, format: uuid }
-        trigger: { type: string, enum: [dms_escalation, verifier_report] }
+        trigger: { type: string, enum: [dms_escalation, verifier_report, executor_request] }
+        kind: { type: string, enum: [death, incapacity] }
+        noticeEndsAt: { type: [string, 'null'], format: date-time }
         status: { $ref: '#/components/schemas/CaseStatus' }
         tier: { type: string, description: Display only; rules come from entitlements (dms.multi_verifier) }
         openedAt: { type: string, format: date-time }

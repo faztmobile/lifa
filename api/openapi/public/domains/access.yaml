@@ -1,6 +1,6 @@
 # Trusted people, role grants, release rules and the trusted-person view.
 # Module: policy (lifa-protected, pool B). FR-PRM-*, FR-FAM-008, FR-NTF-006.
-# Deny by default. Death and incapacity rules can be configured but stay inert until activation exists (R3, D-023).
+# Deny by default. Death and incapacity rules take effect on activation (D-027).
 
 paths:
   grants:
@@ -288,7 +288,7 @@ schemas:
     type: string
     enum: [document, folder, emergency_package]
   ReleaseRuleType:
-    description: FR-PRM-003. Death and incapacity types are inert until R3 activation (D-023).
+    description: FR-PRM-003. Death and incapacity types take effect on activation (FR-ACT-005, FR-ACT-007), once release.activation is on (D-026).
     type: string
     enum: [immediately, on_confirmed_death, on_confirmed_death_with_executor_approval, on_confirmed_incapacity, on_date, on_beneficiary_age]
   ReleaseRuleInput:
@@ -308,7 +308,7 @@ schemas:
           id: { $ref: '../components/common.yaml#/schemas/Id' }
           summary: { type: string, examples: ['On death, after executor approves'] }
           effectiveInCurrentRelease:
-            description: False for death and incapacity rules until activation ships (D-023). The UI explains this.
+            description: False for death and incapacity rules while release.activation is off in this environment (D-026). The UI explains this.
             type: boolean
   AccessSummary:
     type: object

@@ -1,0 +1,616 @@
+# Professional marketplace: owner side, professional side (web portal, D-032) and the attorney will-review workspace.
+# Module: marketplace (lifa-marketplace). FR-MKT-*, FR-WIL-016, FR-LIQ-004.
+# A directory with booking, not a referral network: flat listing fees only, no fee share or commission (FRS 7.2).
+# Lifa never holds client funds (FR-MKT-005, OPEN_QUESTIONS B8). Behind release flag release.marketplace.
+
+paths:
+  professionals:
+    get:
+      operationId: searchProfessionals
+      tags: [Marketplace]
+      summary: Search verified professionals by category, location, language and fixed-fee service
+      x-lifa-fr: [FR-MKT-003, FR-MKT-007, FR-LIQ-004]
+      parameters:
+        - name: category
+          in: query
+          schema: { $ref: '#/schemas/ProfessionalCategory' }
+        - name: near
+          in: query
+          description: Latitude,longitude (rounded to 2 decimals by the client); or use area
+          schema: { type: string, pattern: '^-?[0-9]{1,2}\.[0-9]{1,2},-?[0-9]{1,3}\.[0-9]{1,2}$' }
+        - name: area
+          in: query
+          schema: { type: string, maxLength: 60 }
+        - name: language
+          in: query
+          schema: { type: string, enum: [en, zu, st, ve, af, xh, tn, ts, ss, nr, nso] }
+        - name: service
+          in: query
+          schema: { type: string, examples: [will_review] }
+        - $ref: '../components/common.yaml#/parameters/Cursor'
+        - $ref: '../components/common.yaml#/parameters/Limit'
+      responses:
+        '200':
+          description: Results
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../components/common.yaml#/schemas/Page'
+                  - type: object
+                    required: [disclosure]
+                    properties:
+                      items: { type: array, items: { $ref: '#/schemas/ProfessionalListing' } }
+                      disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+        '400': { $ref: '../components/common.yaml#/responses/BadRequest' }
+
+  professional:
+    get:
+      operationId: getProfessional
+      tags: [Marketplace]
+      summary: Listing detail with published services, fee ranges and moderated reviews
+      x-lifa-fr: [FR-MKT-003, FR-MKT-006, FR-MKT-007]
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Listing
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ProfessionalListing' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  bookings:
+    get:
+      operationId: listMyBookings
+      tags: [Marketplace]
+      summary: The owner's bookings
+      x-lifa-fr: [FR-MKT-004]
+      responses:
+        '200':
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Booking' } }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+    post:
+      operationId: createBooking
+      tags: [Marketplace]
+      summary: Book a consultation or a fixed-fee service
+      x-lifa-fr: [FR-MKT-004]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [professionalId, serviceId]
+              properties:
+                professionalId: { type: string, format: uuid }
+                serviceId: { type: string }
+                preferredSlot: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+                note: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '201':
+          description: Requested
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Booking' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  booking:
+    get:
+      operationId: getBooking
+      tags: [Marketplace]
+      summary: Booking detail
+      x-lifa-fr: [FR-MKT-004]
+      parameters:
+        - $ref: '#/parameters/BookingId'
+      responses:
+        '200':
+          description: Booking
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Booking' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  bookingBundles:
+    post:
+      operationId: shareCaseBundle
+      tags: [Marketplace]
+      summary: Share a defined case bundle (for example the will draft) with the professional for a set period
+      description: Creates a time-boxed, read-only professional grant through policy. The owner is notified on each access (FR-PRM-005).
+      x-lifa-fr: [FR-MKT-004, FR-PRM-001, FR-PRM-005]
+      x-lifa-step-up: grant.write
+      parameters:
+        - $ref: '#/parameters/BookingId'
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, expiresOn]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [itemType, itemId]
+                    properties:
+                      itemType: { type: string, enum: [will, document, balance_sheet, family_tree] }
+                      itemId: { type: string, format: uuid }
+                expiresOn: { $ref: '../components/common.yaml#/schemas/Date' }
+      responses:
+        '201':
+          description: Shared
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/CaseBundle' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  bookingBundle:
+    delete:
+      operationId: revokeCaseBundle
+      tags: [Marketplace]
+      summary: Stop sharing immediately
+      x-lifa-fr: [FR-MKT-004, FR-PRM-006]
+      parameters:
+        - $ref: '#/parameters/BookingId'
+        - name: bundleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  bookingPayment:
+    post:
+      operationId: payForBooking
+      tags: [Marketplace]
+      summary: Pay the professional through the licensed payment provider (split to the professional's subaccount; Lifa holds no client funds)
+      x-lifa-fr: [FR-MKT-005]
+      parameters:
+        - $ref: '#/parameters/BookingId'
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Redirect to the hosted payment page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authorizationUrl, reference]
+                properties:
+                  authorizationUrl: { type: string, format: uri }
+                  reference: { type: string }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  bookingReview:
+    post:
+      operationId: reviewBooking
+      tags: [Marketplace]
+      summary: Rate and review a completed booking (moderated before publishing)
+      x-lifa-fr: [FR-MKT-006]
+      parameters:
+        - $ref: '#/parameters/BookingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                text: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '202':
+          description: Submitted for moderation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [pending_moderation] }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  willAttorneyReview:
+    get:
+      operationId: getWillAttorneyReview
+      tags: [Will]
+      summary: Status, comments and proposed edits from the booked attorney
+      x-lifa-fr: [FR-WIL-016]
+      parameters:
+        - name: willId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Review
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AttorneyReview' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    post:
+      operationId: sendWillToAttorney
+      tags: [Will]
+      summary: '"Send to attorney": share the draft with a booked attorney for comment, edit and approval'
+      x-lifa-fr: [FR-WIL-016, FR-MKT-004]
+      x-lifa-step-up: grant.write
+      parameters:
+        - name: willId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId]
+              properties:
+                bookingId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Sent
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AttorneyReview' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  willAttorneyReviewDecision:
+    post:
+      operationId: decideAttorneyEdits
+      tags: [Will]
+      summary: Accept or reject the attorney's proposed edits (the owner always decides)
+      x-lifa-fr: [FR-WIL-016]
+      parameters:
+        - name: willId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [editIds, accept]
+              properties:
+                editIds: { type: array, items: { type: string, format: uuid } }
+                accept: { type: boolean }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AttorneyReview' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  proProfile:
+    get:
+      operationId: getMyProfessionalProfile
+      tags: [Professional]
+      summary: The professional's own profile and verification status
+      x-lifa-fr: [FR-MKT-001, FR-MKT-002]
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ProfessionalProfile' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    put:
+      operationId: upsertProfessionalProfile
+      tags: [Professional]
+      summary: Onboard or update category, practice details, registration numbers, service areas, languages and fixed-fee services
+      x-lifa-fr: [FR-MKT-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/ProfessionalProfileInput' }
+      responses:
+        '200':
+          description: Saved; verification pending if registration details changed
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ProfessionalProfile' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  proEvidence:
+    post:
+      operationId: uploadRegistrationEvidence
+      tags: [Professional]
+      summary: Upload registration evidence (LPC, FSP licence, professional body certificate) for Operations to verify
+      x-lifa-fr: [FR-MKT-001, FR-MKT-002]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [kind, file]
+              properties:
+                kind: { type: string, enum: [lpc_certificate, fsp_licence, saqa_or_body_certificate, practice_registration] }
+                file: { type: string, contentMediaType: application/octet-stream }
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ProfessionalProfile' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  proListingSubscription:
+    post:
+      operationId: subscribeListing
+      tags: [Professional]
+      summary: Start or change the flat monthly listing subscription. Tiers affect placement, never review scores (FR-MKT-008).
+      x-lifa-fr: [FR-MKT-008]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listingTier]
+              properties:
+                listingTier: { type: string, enum: [basic, featured] }
+      responses:
+        '201':
+          description: Redirect to checkout
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authorizationUrl]
+                properties:
+                  authorizationUrl: { type: string, format: uri }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  proBookings:
+    get:
+      operationId: listProfessionalBookings
+      tags: [Professional]
+      summary: Bookings received
+      x-lifa-fr: [FR-MKT-004]
+      responses:
+        '200':
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Booking' } }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  proBooking:
+    patch:
+      operationId: updateBookingAsProfessional
+      tags: [Professional]
+      summary: Confirm, reschedule, complete or decline a booking
+      x-lifa-fr: [FR-MKT-004]
+      parameters:
+        - $ref: '#/parameters/BookingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [confirmed, completed, declined] }
+                slot: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Booking' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  proWillReview:
+    get:
+      operationId: getWillForReview
+      tags: [Professional]
+      summary: The shared will draft (read-only) with comments, available until the bundle expires
+      x-lifa-fr: [FR-WIL-016]
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Draft and review
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [will, review]
+                properties:
+                  will: { $ref: './will.yaml#/schemas/Will' }
+                  review: { $ref: '#/schemas/AttorneyReview' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  proWillReviewComments:
+    post:
+      operationId: addAttorneyComment
+      tags: [Professional]
+      summary: Comment on, or propose an edit to, a clause or bounded field
+      x-lifa-fr: [FR-WIL-016]
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target, text]
+              properties:
+                target: { type: string, description: 'JSON pointer into the will, for example /bequests/0/description' }
+                text: { type: string, maxLength: 2000 }
+                proposedValue: { type: [string, 'null'], maxLength: 2000 }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AttorneyReview' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  proWillReviewApproval:
+    post:
+      operationId: approveWillReview
+      tags: [Professional]
+      summary: Record the attorney's approval of the draft as reviewed
+      x-lifa-fr: [FR-WIL-016]
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AttorneyReview' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+parameters:
+  BookingId:
+    name: bookingId
+    in: path
+    required: true
+    schema: { type: string, format: uuid }
+
+schemas:
+  ProfessionalCategory:
+    type: string
+    enum: [estate_attorney, fiduciary, financial_adviser, insurer, valuer, conveyancer, funeral_provider]
+  Service:
+    type: object
+    required: [id, title]
+    properties:
+      id: { type: string }
+      title: { type: string, examples: ['Will review'] }
+      fixedFee: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+      feeFrom: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+      feeTo: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+  ProfessionalListing:
+    type: object
+    required: [id, name, category, verifiedBadges, languages, services, independentNotice]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      name: { type: string }
+      initials: { type: string }
+      category: { $ref: '#/schemas/ProfessionalCategory' }
+      area: { type: string, examples: [Bryanston] }
+      distanceKm: { type: [number, 'null'] }
+      verifiedBadges: { type: array, items: { type: string, enum: [lpc_verified, fsp_licensed, body_registered] } }
+      languages: { type: array, items: { type: string } }
+      rating: { type: [number, 'null'] }
+      reviewCount: { type: integer }
+      services: { type: array, items: { $ref: '#/schemas/Service' } }
+      independentNotice: { type: string, description: 'FR-MKT-007: independent of Lifa' }
+  Booking:
+    type: object
+    required: [id, professionalId, serviceId, status]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      professionalId: { type: string, format: uuid }
+      professionalName: { type: string }
+      clientGivenName: { type: string, description: Shown to the professional only }
+      serviceId: { type: string }
+      slot: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      status: { type: string, enum: [requested, confirmed, completed, declined, cancelled] }
+      paymentStatus: { type: string, enum: [unpaid, paid, refunded, not_required] }
+      bundles: { type: array, items: { $ref: '#/schemas/CaseBundle' } }
+  CaseBundle:
+    type: object
+    required: [id, items, expiresOn, status]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      items:
+        type: array
+        items:
+          type: object
+          required: [itemType, itemId]
+          properties:
+            itemType: { type: string }
+            itemId: { type: string, format: uuid }
+      expiresOn: { $ref: '../components/common.yaml#/schemas/Date' }
+      status: { type: string, enum: [active, expired, revoked] }
+  AttorneyReview:
+    type: object
+    required: [id, willId, status, comments]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      willId: { type: string, format: uuid }
+      bookingId: { type: string, format: uuid }
+      attorneyName: { type: string }
+      status: { type: string, enum: [shared, in_review, changes_proposed, approved, expired] }
+      comments:
+        type: array
+        items:
+          type: object
+          required: [id, target, text, at]
+          properties:
+            id: { type: string, format: uuid }
+            target: { type: string }
+            text: { type: string }
+            proposedValue: { type: [string, 'null'] }
+            decision: { type: [string, 'null'], enum: [accepted, rejected, null] }
+            at: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      approvedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  ProfessionalProfileInput:
+    type: object
+    required: [practiceName, category, serviceAreas, languages]
+    properties:
+      practiceName: { type: string, maxLength: 160 }
+      category: { $ref: '#/schemas/ProfessionalCategory' }
+      lpcNumber: { type: [string, 'null'], maxLength: 30 }
+      fspNumber: { type: [string, 'null'], maxLength: 30 }
+      bodyRegistrationNumber: { type: [string, 'null'], maxLength: 40 }
+      serviceAreas: { type: array, minItems: 1, items: { type: string } }
+      languages: { type: array, minItems: 1, items: { type: string } }
+      services: { type: array, items: { $ref: '#/schemas/Service' } }
+      payoutSubaccountRef: { type: [string, 'null'], description: Payment-provider subaccount (B8) }
+  ProfessionalProfile:
+    allOf:
+      - $ref: '#/schemas/ProfessionalProfileInput'
+      - type: object
+        required: [id, verificationStatus]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+          verificationStatus: { type: string, enum: [draft, pending, verified, rejected, reverification_due, suspended] }
+          verifiedUntil: { type: [string, 'null'], format: date }
+          listingTier: { type: [string, 'null'], enum: [basic, featured, null] }
+          live: { type: boolean }

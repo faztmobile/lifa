@@ -18,22 +18,27 @@ Each module is a Gradle project pair: `:<m>:api` (Kotlin interfaces, DTOs, event
 | Module | FRS component | Owns (schema) | Key FRs | Pool |
 |---|---|---|---|---|
 | `identity` | Identity service | users, devices, consents, mobile verifications, step-up challenges, invitations, deletion requests, ID-verification checks | ONB-001..007, 009, 011 | A |
-| `entitlement` | Entitlement service | entitlement grants, trial usage, plan catalogue snapshot | SUB-001, 003, 004, 007 | A |
+| `entitlement` | Entitlement service | entitlement grants, trial usage, plan catalogue snapshot, group codes and attribution | SUB-001, 003, 004, 007, 008, ONB-010 | A |
 | `billing` | Billing service | subscriptions, store transactions, Paystack payments, invoices, add-on orders | SUB-002, 005, 006 | A |
 | `policy` | Policy service (ABAC) | role grants, release rules, decision cache epoch | PRM-001..007 | **B** |
 | `audit` | Audit service | append-only hash-chained events | VLT-009, PRM-005, NFR-AUD-001 | **B** (own DB) |
 | `score` | Score service | assessments, scores, score history, life events, action lists | SCR-001..009 | A |
 | `will` | Will service | wills, versions, allocations, bequests, nominations, executions, codicils | WIL-001..014, 017, 018 | A |
 | `estate` | Estate service | estates, persons, assets, liabilities, value history | AST-*, FAM-* | A |
-| `wallet` | (part of Estate in FRS 8.2) | net-worth snapshots, balance-update prompts | WAL-001..003 | A |
+| `wallet` | (part of Estate in FRS 8.2) | net-worth snapshots, balance-update prompts, household goals | WAL-001..004 | A |
 | `vault` | Vault service | folders, document metadata, wrapped data keys, quota usage, scan results | VLT-001..011 | **B** |
 | `extraction` | Extraction service | extraction jobs (transient, deleted after confirmation or 7 days) | AST-005, VLT-004 | **B** |
 | `simulation` | Simulation service | scenarios, results, rule-table versions | SIM-*, LIQ-* | A |
-| `lifecycle` | Lifecycle service | check-in settings, check-ins, verifiers, verification cases, estate-state machine | DMS-001..007 (ACT in R3) | **B** |
+| `lifecycle` | Lifecycle service | check-in settings, check-ins, verifiers, verification and activation cases, evidence, estate-state machine | DMS-001..007, ACT-001..008 | **B** |
+| `executor` | Executor service | estate files, checklist state, deadlines, institution requests, claims register, realised values, beneficiary updates, co-executor grants | EXE-001..013 | **B** |
+| `digital` | (Vault/Release in FRS 8.1) | digital assets (masked identifiers, wishes, recovery-location references), sealed-instruction ciphertext | DIG-001..004 | **B** |
+| `trust` | (Estate in FRS 8.2) | existing trusts, suitability questionnaire responses | TRS-001..003, FAM-007 | A |
+| `marketplace` | Marketplace service | professionals, verification evidence, listings, bookings, case bundles, reviews, listing subscriptions | MKT-001..008, WIL-016 | A |
+| `ai` | AI adviser service | conversations (redacted, 90 days), quota usage, knowledge-base index, evaluation runs | AI-001..006 | **C** |
 | `emergency` | (FR-EMG; FRS places it in Vault/Release) | card config, widget tokens, emergency package | EMG-001..003 | A (package release decisions go through `policy`) |
 | `notification` | Notification service | preferences, templates, push tokens, inbox, delivery log | NTF-001..004, 006 | A |
 | `docgen` | Document generation | none (renders on demand, writes outputs to the vault) | WIL-010, VLT-010, ONB-011 export | A |
-| `backoffice` | Back-office console API | support notes, quarantine decisions, case review assignments | D-014 | A (calls B through policy) |
+| `backoffice` | Back-office console API | support notes, quarantine decisions, case assignments and four-eyes decisions, professional vetting, review moderation, content publishing | D-014, ACT-003, MKT-002, MKT-006 | A (calls B through policy) |
 
 ## 3.2 Deployables (D-020)
 
@@ -44,10 +49,17 @@ Each module is a Gradle project pair: `:<m>:api` (Kotlin interfaces, DTOs, event
 | `lifa-commerce` | entitlement, billing (incl. inbound webhooks) | A | `pg-a` | RPS |
 | `lifa-protected` | vault, policy, extraction | **B** | `pg-b` | CPU, upload concurrency |
 | `lifa-lifecycle` | lifecycle | **B** | `pg-b` | Service Bus backlog |
+| `lifa-executor` | executor, digital | **B** | `pg-b` | RPS |
+| `lifa-marketplace` | marketplace, trust | A | `pg-a` | RPS |
+| `lifa-ai` | ai | **C** (own namespace, egress only to the LLM provider) | `pg-ai` (pgvector) | RPS, token budget |
 | `lifa-audit` | audit | **B** | `pg-ledger` | write rate |
 | `lifa-workers` | docgen, notification dispatch, malware scan (ClamAV sidecar), extraction workers | split: `workers-a` (docgen, notify) on A, `workers-b` (scan, extract) on B | per module | Service Bus backlog (KEDA) |
 | `web-bff` | session, token holding, CSRF, proxies to APIM | A | Redis (session, encrypted) | RPS |
 | `backoffice-bff` | staff SSO (Entra workforce tenant), JIT role checks | A | — | — |
+
+Pool C isolation (D-031): `lifa-ai` cannot reach pool B or `pg-a`. It receives plan data only from
+`lifa-core`'s redaction endpoint (consent checked, ID and account numbers removed, FR-AI-002/005), and its only
+egress is the LLM provider endpoint, through an Azure Firewall FQDN rule.
 
 Pool B isolation (FRS 8, 9.1):
 - Separate AKS node pool with taints. Only pool-B workloads have Managed HSM `wrapKey/unwrapKey` rights, through Workload Identity.
@@ -100,6 +112,10 @@ sequenceDiagram
 | `checkin.due`, `checkin.missed`, `verifier.notify` | lifecycle | notification | DMS-002, 003 |
 | `case.opened`, `case.cancelled` | lifecycle | backoffice, notification | DMS-004, 006 |
 | `account.deletion-requested`/`-executed` | identity | every module (purge), vault (crypto-shred) | ONB-011 |
+| `activation.requested`, `activation.notice-started`, `activation.completed`, `activation.cancelled` | lifecycle | policy (evaluate release rules), executor (create estate file), notification, entitlement (executor workspace or Executor Pack offer), marketing suppression | ACT-001..008, NTF-005 |
+| `estate-file.updated` | executor | notification (beneficiary updates) | EXE-008 |
+| `booking.created`, `bundle.expired` | marketplace | policy (time-boxed professional grant), notification | MKT-004 |
+| `professional.verified`, `professional.reverify-due` | marketplace | backoffice, notification | MKT-002 |
 | `notification.requested` | any | notification dispatcher | NTF-001 |
 
 Messages carry IDs only, never estate content. The consumer fetches what it needs, with its own policy check.
@@ -119,3 +135,12 @@ Messages carry IDs only, never estate content. The consumer fetches what it need
 | Deletion after 30-day window and crypto-shred | identity, vault | hourly | ONB-011 |
 | Audit chain export to immutable blob | audit | daily | NFR-AUD-001 |
 | Extraction job purge (7 days) | extraction | daily | Data minimisation |
+| Activation 72-hour notice timer | lifecycle | every 5 min | ACT-004 |
+| Case SLA alerts (2 business days) | lifecycle | hourly | ACT-003, NFR-OBS-001 |
+| Executor deadline reminders | executor | daily | EXE-004 |
+| Estate file retention (5 years after distribution) | executor | daily | EXE-011 |
+| Professional annual re-verification | marketplace | daily | MKT-002 |
+| Booking case-bundle expiry | marketplace | hourly | MKT-004 |
+| Listing subscription billing | marketplace + billing | daily | MKT-008 |
+| AI quota reset and conversation purge (90 days) | ai | daily | AI-004, FRS 12.3 |
+| Group code expiry | entitlement | daily | SUB-008 |

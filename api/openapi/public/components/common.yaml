@@ -41,7 +41,7 @@ schemas:
     properties:
       key:
         type: string
-        enum: [not-law-firm, estimate-only, education-only, executor-acts-alone, info-officer, activation-cancel]
+        enum: [not-law-firm, estimate-only, education-only, executor-acts-alone, info-officer, activation-cancel, independent-professionals]
       text: { type: string }
   Warning:
     description: >-
@@ -67,7 +67,7 @@ schemas:
     required: [id, kind, status, createdAt]
     properties:
       id: { $ref: '#/schemas/Id' }
-      kind: { type: string, enum: [signing-pack, emergency-card-pdf, estate-pack, account-export, extraction] }
+      kind: { type: string, enum: [signing-pack, emergency-card-pdf, estate-pack, account-export, extraction, institution-letters, estate-file-export] }
       status: { type: string, enum: [queued, running, succeeded, failed] }
       createdAt: { $ref: '#/schemas/Timestamp' }
       completedAt: { $ref: '#/schemas/Timestamp' }
@@ -108,6 +108,7 @@ schemas:
           - rate_limited
           - estate_frozen
           - dependency_unavailable
+          - release_disabled
       stepUpScope:
         description: Present when code = step_up_required.
         $ref: '#/schemas/StepUpScope'

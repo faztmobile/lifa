@@ -98,6 +98,27 @@ paths:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
         '204': { $ref: '../components/common.yaml#/responses/NoContent' }
 
+  scenarioPromote:
+    post:
+      operationId: promoteScenarioToDraft
+      tags: [Simulation]
+      summary: '"Use scenario B for a new draft": create a will draft from the scenario (the live will is untouched) (Family)'
+      x-lifa-fr: [FR-SIM-004]
+      x-lifa-entitlement: sim.promote
+      parameters:
+        - name: scenarioId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: './will.yaml#/schemas/Will' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
   scenarioComparison:
     get:
       operationId: compareScenarios
@@ -136,7 +157,7 @@ paths:
       description: >-
         Free: gapExists only. Plus: adds the gap amount and the totals of cash needed and cash available.
         Family: adds the full breakdown and the drivers. Policies and funds payable directly to nominees are excluded (FR-LIQ-002).
-      x-lifa-fr: [FR-LIQ-001, FR-LIQ-002, FR-LIQ-003, FR-SIM-006]
+      x-lifa-fr: [FR-LIQ-001, FR-LIQ-002, FR-LIQ-003, FR-LIQ-004, FR-SIM-006]
       x-lifa-entitlement: liq.view_level
       responses:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
@@ -195,7 +216,10 @@ schemas:
     type: object
     required: [kind]
     properties:
-      kind: { type: string, enum: [set_allocation, add_bequest, remove_bequest, testamentary_trust, sell_asset, change_regime] }
+      kind:
+        description: simultaneous_death models both linked spouses dying together (FR-SIM-005, Family, entitlement sim.simultaneous_death)
+        type: string
+        enum: [set_allocation, add_bequest, remove_bequest, testamentary_trust, sell_asset, change_regime, simultaneous_death]
       personId: { type: [string, 'null'], format: uuid }
       assetId: { type: [string, 'null'], format: uuid }
       percent: { type: [number, 'null'] }
@@ -236,7 +260,13 @@ schemas:
           cashAvailable: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
           needsBreakdown: { type: [array, 'null'], items: { $ref: '#/schemas/LiquidityLine' } }
           availableBreakdown: { type: [array, 'null'], items: { $ref: '#/schemas/LiquidityLine' } }
-          educationTopics:
-            description: Content only (cover, cash reserve, asset sale, restructure). Never a product recommendation. The adviser link is R3 (C12).
+          educationOptions:
+            description: FR-LIQ-004. Educational options (cover, cash reserve, asset sale, restructure) and a link to book a licensed adviser. Never a specific product.
             type: array
-            items: { type: string }
+            items:
+              type: object
+              required: [title, contentKey]
+              properties:
+                title: { type: string }
+                contentKey: { type: string }
+          adviserSearchTarget: { type: [string, 'null'], examples: ['lifa://professionals?category=financial_adviser'] }

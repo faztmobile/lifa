@@ -553,7 +553,7 @@ schemas:
   ConsentPurpose:
     description: FR-ONB-007 purposes.
     type: string
-    enum: [planning, special_personal_information, sharing_with_trusted_people, marketing]
+    enum: [planning, special_personal_information, sharing_with_trusted_people, marketing, ai_personalisation]
   ConsentSet:
     type: object
     required: [noticeVersion, items]

@@ -1,0 +1,618 @@
+# Executor workspace and beneficiary view. Module: executor (lifa-executor, pool B). FR-EXE-*.
+# Behind release flag release.executor (D-026). The executor is the only actor: Lifa prepares letters, checklists
+# and forms for the executor to use in their own name and never contacts institutions (FR-EXE-013).
+# Every response carries the executor-acts-alone disclosure. Statutory values are [VERIFY] config (D-030).
+
+paths:
+  estateFiles:
+    get:
+      operationId: listEstateFiles
+      tags: [Executor]
+      summary: Estate files where the caller is executor, co-executor, attorney or agent
+      x-lifa-fr: [FR-EXE-001, FR-EXE-009]
+      responses:
+        '200':
+          description: Estate files
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/EstateFileSummary' } }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  estateFile:
+    get:
+      operationId: getEstateFile
+      tags: [Executor]
+      summary: Workspace overview (route, phase, task counts, next step, entitlement period)
+      x-lifa-fr: [FR-EXE-001, FR-EXE-002, FR-EXE-003, FR-EXE-012, FR-EXE-013, FR-ACT-006]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Estate file
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EstateFile' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileTasks:
+    get:
+      operationId: listEstateFileTasks
+      tags: [Executor]
+      summary: Phased checklist, adjusted to the administration route
+      x-lifa-fr: [FR-EXE-002, FR-EXE-003]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Phases and tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [phases]
+                properties:
+                  phases: { type: array, items: { $ref: '#/schemas/Phase' } }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileTask:
+    patch:
+      operationId: updateEstateFileTask
+      tags: [Executor]
+      summary: Mark a task done or not applicable, add a note or attach evidence
+      x-lifa-fr: [FR-EXE-003]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [todo, in_progress, done, not_applicable] }
+                note: { type: [string, 'null'], maxLength: 1000 }
+                completedOn: { type: [string, 'null'], format: date }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Task' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+
+  estateFileDeadlines:
+    get:
+      operationId: listEstateFileDeadlines
+      tags: [Executor]
+      summary: Statutory and practical deadlines, counted from the reporting deadline after death
+      x-lifa-fr: [FR-EXE-004]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Deadlines
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, configVersion]
+                properties:
+                  configVersion: { type: string }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [key, label, dueOn, status]
+                      properties:
+                        key: { type: string }
+                        label: { type: string }
+                        dueOn: { $ref: '../components/common.yaml#/schemas/Date' }
+                        status: { type: string, enum: [upcoming, due_soon, overdue, met] }
+                        statutory: { type: boolean }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileInventory:
+    get:
+      operationId: getEstateFileInventory
+      tags: [Executor]
+      summary: Inventory from the frozen owner data, with declared and realised values
+      x-lifa-fr: [FR-EXE-001, FR-EXE-007]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Inventory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, totals]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/InventoryItem' } }
+                  totals:
+                    type: object
+                    required: [declared, realised]
+                    properties:
+                      declared: { $ref: '../components/common.yaml#/schemas/Money' }
+                      realised: { $ref: '../components/common.yaml#/schemas/Money' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileInventoryItem:
+    patch:
+      operationId: recordRealisedValue
+      tags: [Executor]
+      summary: Record the actual realised value; inventory and distribution figures update
+      x-lifa-fr: [FR-EXE-007]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [realisedValue, realisedOn]
+              properties:
+                realisedValue: { $ref: '../components/common.yaml#/schemas/Money' }
+                realisedOn: { $ref: '../components/common.yaml#/schemas/Date' }
+                evidenceDocumentId: { type: [string, 'null'], format: uuid }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/InventoryItem' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileInstitutions:
+    get:
+      operationId: listInstitutionRequests
+      tags: [Executor]
+      summary: Pre-filled document request list per institution (bank, insurer, retirement fund, SARS, deeds office, vehicle registration)
+      x-lifa-fr: [FR-EXE-005, FR-EXE-013]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Institutions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, disclosure]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, kind, name, documentsNeeded, status]
+                      properties:
+                        id: { type: string, format: uuid }
+                        kind: { type: string, enum: [bank, insurer, retirement_fund, sars, deeds_office, vehicle_registration, other] }
+                        name: { type: string }
+                        documentsNeeded: { type: array, items: { type: string } }
+                        status: { type: string, enum: [not_started, letter_prepared, sent_by_executor, responded, closed] }
+                  disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileLetters:
+    post:
+      operationId: prepareInstitutionLetters
+      tags: [Executor]
+      summary: Prepare letters for the executor to send in their own name (PDF job). Lifa never sends them (FR-EXE-013).
+      x-lifa-fr: [FR-EXE-005, FR-EXE-013]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [institutionIds]
+              properties:
+                institutionIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileClaims:
+    get:
+      operationId: listClaims
+      tags: [Executor]
+      summary: Creditor and debtor register
+      x-lifa-fr: [FR-EXE-006]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Claims
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Claim' } }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    post:
+      operationId: createClaim
+      tags: [Executor]
+      summary: Record a claim
+      x-lifa-fr: [FR-EXE-006]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/ClaimInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Claim' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  estateFileClaim:
+    patch:
+      operationId: updateClaim
+      tags: [Executor]
+      summary: Update a claim's status or amount
+      x-lifa-fr: [FR-EXE-006]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - name: claimId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/ClaimInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Claim' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileUpdates:
+    get:
+      operationId: listBeneficiaryUpdates
+      tags: [Executor]
+      summary: Beneficiary communication log
+      x-lifa-fr: [FR-EXE-008]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Updates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/BeneficiaryUpdate' } }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    post:
+      operationId: postBeneficiaryUpdate
+      tags: [Executor]
+      summary: Post an update that beneficiaries see in their own view
+      x-lifa-fr: [FR-EXE-008]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '201':
+          description: Posted
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/BeneficiaryUpdate' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  estateFileMembers:
+    get:
+      operationId: listEstateFileMembers
+      tags: [Executor]
+      summary: Co-executors, attorneys and agents with scoped access
+      x-lifa-fr: [FR-EXE-009]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Member' } }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    post:
+      operationId: inviteEstateFileMember
+      tags: [Executor]
+      summary: Invite a co-executor, attorney or agent with scoped access
+      x-lifa-fr: [FR-EXE-009]
+      x-lifa-step-up: grant.write
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, email, scope]
+              properties:
+                role: { type: string, enum: [co_executor, attorney, agent] }
+                email: { type: string, format: email }
+                displayName: { type: string, maxLength: 120 }
+                scope:
+                  type: array
+                  items: { type: string, enum: [checklist, inventory, claims, documents, updates, exports] }
+      responses:
+        '201':
+          description: Invited
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Member' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  estateFileMember:
+    delete:
+      operationId: removeEstateFileMember
+      tags: [Executor]
+      summary: Remove a member's access immediately
+      x-lifa-fr: [FR-EXE-009, FR-PRM-006]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  estateFileExports:
+    post:
+      operationId: exportEstateFile
+      tags: [Executor]
+      summary: Export the full estate file (inventory, registers, log, documents index) as PDF and CSV
+      x-lifa-fr: [FR-EXE-010]
+      x-lifa-step-up: account.export
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  estateFileClosure:
+    post:
+      operationId: markDistributionComplete
+      tags: [Executor]
+      summary: Mark distribution complete. The file becomes read-only for 5 years, then is deleted unless extended (FR-EXE-011).
+      x-lifa-fr: [FR-EXE-011]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      responses:
+        '200':
+          description: Closed
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EstateFile' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  estateFileRetention:
+    post:
+      operationId: extendEstateFileRetention
+      tags: [Executor]
+      summary: Extend retention for a documented reason
+      x-lifa-fr: [FR-EXE-011]
+      parameters:
+        - $ref: '#/parameters/EstateFileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [until, reason]
+              properties:
+                until: { $ref: '../components/common.yaml#/schemas/Date' }
+                reason: { type: string, minLength: 10, maxLength: 1000 }
+      responses:
+        '200':
+          description: Extended
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EstateFile' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  beneficiaryView:
+    get:
+      operationId: getBeneficiaryView
+      tags: [Shared]
+      summary: A beneficiary's own view (allocation once the executor confirms, released items, updates)
+      x-lifa-fr: [FR-EXE-008, FR-EXE-012]
+      parameters:
+        - name: estateId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Beneficiary view
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/BeneficiaryView' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+parameters:
+  EstateFileId:
+    name: estateFileId
+    in: path
+    required: true
+    schema: { type: string, format: uuid }
+
+schemas:
+  AdministrationRoute:
+    description: FR-EXE-002. Threshold is [VERIFY] configuration (OPEN_QUESTIONS D11).
+    type: string
+    enum: [masters_direction, letters_of_executorship, undetermined]
+  EstateFileSummary:
+    type: object
+    required: [id, estateId, deceasedName, myRole, phaseIndex, phaseCount]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      estateId: { type: string, format: uuid }
+      deceasedName: { type: string }
+      myRole: { type: string, enum: [executor, co_executor, attorney, agent] }
+      phaseIndex: { type: integer }
+      phaseCount: { type: integer }
+  EstateFile:
+    allOf:
+      - $ref: '#/schemas/EstateFileSummary'
+      - type: object
+        required: [route, status, tasksDone, tasksTotal, counts, disclosure]
+        properties:
+          route: { $ref: '#/schemas/AdministrationRoute' }
+          status: { type: string, enum: [open, distribution_complete, retained, deleted_pending] }
+          nextStep: { type: [string, 'null'], examples: ['Advertise for creditors'] }
+          tasksDone: { type: integer }
+          tasksTotal: { type: integer }
+          counts:
+            type: object
+            required: [inventoryItems, claims, updatesSent]
+            properties:
+              inventoryItems: { type: integer }
+              claims: { type: integer }
+              updatesSent: { type: integer }
+          access:
+            description: How the workspace is funded (FR-ACT-006, FR-SUB-005)
+            type: object
+            required: [basis]
+            properties:
+              basis: { type: string, enum: [paid_plan_benefit, executor_pack, none] }
+              freeUntil: { type: [string, 'null'], format: date }
+              executorPackProductId: { type: [string, 'null'] }
+          retainUntil: { type: [string, 'null'], format: date }
+          ownScoreOfferEligible: { type: boolean, description: FR-EXE-012; shown only at a natural pause }
+          disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+  Task:
+    type: object
+    required: [id, title, status]
+    properties:
+      id: { type: string }
+      title: { type: string }
+      guidance: { type: string }
+      status: { type: string, enum: [todo, in_progress, done, not_applicable] }
+      progress: { type: [string, 'null'], examples: ['4 of 9'] }
+      note: { type: [string, 'null'] }
+      completedOn: { type: [string, 'null'], format: date }
+  Phase:
+    type: object
+    required: [key, title, tasks]
+    properties:
+      key:
+        type: string
+        enum: [report_estate, obtain_appointment, estate_bank_account, notify_institutions, advertise_creditors, value_inventory, settle_claims, tax, liquidation_distribution_account, inspection, distribute_transfer, close]
+      title: { type: string }
+      tasks: { type: array, items: { $ref: '#/schemas/Task' } }
+  InventoryItem:
+    type: object
+    required: [id, kind, description, declaredValue]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      kind: { type: string, enum: [asset, liability] }
+      description: { type: string }
+      declaredValue: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      realisedValue: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+      realisedOn: { type: [string, 'null'], format: date }
+      passesOutsideEstate: { type: boolean, description: 'Nomination-paid funds and policies (FR-AST-007)' }
+  ClaimInput:
+    type: object
+    required: [party, direction, amount, status]
+    properties:
+      party: { type: string, maxLength: 160 }
+      direction: { type: string, enum: [creditor, debtor] }
+      amount: { $ref: '../components/common.yaml#/schemas/Money' }
+      status: { type: string, enum: [lodged, accepted, disputed, paid] }
+      evidenceDocumentId: { type: [string, 'null'], format: uuid }
+      note: { type: [string, 'null'], maxLength: 1000 }
+  Claim:
+    allOf:
+      - $ref: '#/schemas/ClaimInput'
+      - type: object
+        required: [id]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+  BeneficiaryUpdate:
+    type: object
+    required: [id, postedAt, authorName, text]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      postedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      authorName: { type: string }
+      text: { type: string }
+  Member:
+    type: object
+    required: [id, role, displayName, status, scope]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      role: { type: string, enum: [co_executor, attorney, agent] }
+      displayName: { type: string }
+      status: { type: string, enum: [invited, active, removed] }
+      scope: { type: array, items: { type: string } }
+  BeneficiaryView:
+    type: object
+    required: [deceasedName, released, updates, notice]
+    properties:
+      deceasedName: { type: string }
+      residueSharePercent: { type: [number, 'null'] }
+      amountConfirmed: { type: boolean, description: False until the executor completes the estate account }
+      amountNote: { type: string, examples: ['The amount is confirmed once Sipho, as executor, completes the estate account.'] }
+      released:
+        type: array
+        items:
+          type: object
+          required: [itemType, itemId, label]
+          properties:
+            itemType: { type: string, enum: [document, personal_message, bequest, digital_asset] }
+            itemId: { type: string, format: uuid }
+            label: { type: string }
+            detail: { type: [string, 'null'] }
+      updates: { type: array, items: { $ref: '#/schemas/BeneficiaryUpdate' } }
+      notice: { type: string, examples: ['You only see what Thandi chose to release to you.'] }

@@ -152,6 +152,38 @@ paths:
               schema: { $ref: '#/schemas/Subscription' }
         '409': { $ref: '../components/common.yaml#/responses/Conflict' }
 
+  groupCodeRedemptions:
+    post:
+      operationId: redeemGroupCode
+      tags: [Commerce]
+      summary: Redeem a community group code (stokvel, burial society, church, alumni) for a promotional entitlement, with attribution
+      x-lifa-fr: [FR-ONB-010, FR-SUB-008]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9-]{4,24}$' }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [groupName, grant, expiresOn]
+                properties:
+                  groupName: { type: string }
+                  grant: { type: string, examples: ['12 months of Plus'] }
+                  expiresOn: { $ref: '../components/common.yaml#/schemas/Date' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
   invoices:
     get:
       operationId: listInvoices
