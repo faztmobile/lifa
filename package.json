@@ -4,9 +4,13 @@
   "description": "Repo-level tooling only (API lint/bundle). Each client and the backend have their own build.",
   "scripts": {
     "api:lint": "redocly lint --config api/redocly.yaml",
-    "api:bundle": "redocly bundle public@v1 backoffice@v1 webhooks@v1 --config api/redocly.yaml"
+    "api:bundle": "redocly bundle public@v1 backoffice@v1 webhooks@v1 --config api/redocly.yaml",
+    "tokens:build": "node design/generators/build.mjs",
+    "tokens:check": "node design/generators/build.mjs --check",
+    "tokens:test": "node design/generators/contrast.mjs"
   },
   "devDependencies": {
-    "@redocly/cli": "2.59.0"
+    "@redocly/cli": "2.59.0",
+    "style-dictionary": "5.6.0"
   }
 }

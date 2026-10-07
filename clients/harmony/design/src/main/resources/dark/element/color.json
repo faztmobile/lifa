@@ -1,0 +1,140 @@
+{
+  "color": [
+    {
+      "name": "lifa_background",
+      "value": "#FF0F1A15"
+    },
+    {
+      "name": "lifa_surface",
+      "value": "#FF17251E"
+    },
+    {
+      "name": "lifa_line",
+      "value": "#FF2C3B33"
+    },
+    {
+      "name": "lifa_line_strong",
+      "value": "#FF6E7E74"
+    },
+    {
+      "name": "lifa_text",
+      "value": "#FFEDF1EC"
+    },
+    {
+      "name": "lifa_text_muted",
+      "value": "#FFA8B3AC"
+    },
+    {
+      "name": "lifa_primary",
+      "value": "#FF8FCBA2"
+    },
+    {
+      "name": "lifa_primary_pressed",
+      "value": "#FFA7D8B6"
+    },
+    {
+      "name": "lifa_on_primary",
+      "value": "#FF0B2E21"
+    },
+    {
+      "name": "lifa_hero",
+      "value": "#FF133A2B"
+    },
+    {
+      "name": "lifa_hero_inset",
+      "value": "#FF1B4836"
+    },
+    {
+      "name": "lifa_on_hero",
+      "value": "#FFFFFFFF"
+    },
+    {
+      "name": "lifa_on_hero_muted",
+      "value": "#FFB7C9BE"
+    },
+    {
+      "name": "lifa_hero_accent",
+      "value": "#FFD9B373"
+    },
+    {
+      "name": "lifa_hero_positive",
+      "value": "#FF8FD0A3"
+    },
+    {
+      "name": "lifa_gold",
+      "value": "#FFD9B373"
+    },
+    {
+      "name": "lifa_gold_text",
+      "value": "#FFE3C38A"
+    },
+    {
+      "name": "lifa_gold_soft",
+      "value": "#FF3A2E17"
+    },
+    {
+      "name": "lifa_leaf",
+      "value": "#FF6DBB86"
+    },
+    {
+      "name": "lifa_leaf_text",
+      "value": "#FF6DBB86"
+    },
+    {
+      "name": "lifa_leaf_soft",
+      "value": "#FF1D3326"
+    },
+    {
+      "name": "lifa_warning",
+      "value": "#FFE8A951"
+    },
+    {
+      "name": "lifa_warning_text",
+      "value": "#FFE8A951"
+    },
+    {
+      "name": "lifa_warning_soft",
+      "value": "#FF3A2A12"
+    },
+    {
+      "name": "lifa_critical",
+      "value": "#FFF0907E"
+    },
+    {
+      "name": "lifa_critical_soft",
+      "value": "#FF3D1D18"
+    },
+    {
+      "name": "lifa_focus",
+      "value": "#FF8FCBA2"
+    },
+    {
+      "name": "lifa_scrim",
+      "value": "#B3000000"
+    },
+    {
+      "name": "lifa_avatar_green_bg",
+      "value": "#FF1D3326"
+    },
+    {
+      "name": "lifa_avatar_green_fg",
+      "value": "#FF8FCBA2"
+    },
+    {
+      "name": "lifa_avatar_gold_bg",
+      "value": "#FF3A2E17"
+    },
+    {
+      "name": "lifa_avatar_gold_fg",
+      "value": "#FFE3C38A"
+    },
+    {
+      "name": "lifa_avatar_lavender_bg",
+      "value": "#FF2B2645"
+    },
+    {
+      "name": "lifa_avatar_lavender_fg",
+      "value": "#FFC9C1F2"
+    }
+  ]
+}
