@@ -76,6 +76,17 @@ Sources: FRS v0.1 (7 Oct 2026), 25-screen UI reference, the engineering brief, a
 | D13 | Support and grief resources for FR-AI-006 and the activation screens | Supplied later | DEFERRED |
 | D14 | Executor Pack price (R1,499 once or R199/month while the estate is open, FRS 2.4) and attorney-review fee ranges are planning values | Held in `content/entitlements/plans.yaml` as configuration | PROPOSED |
 
+## G. Step 2 (design system)
+
+| # | Question | Status |
+|---|---|---|
+| G1 | **App icon master artwork.** The supplied icon already has its rounded corners applied (transparent corners). Store icons need a full-bleed square master (iOS 1024 × 1024 with no transparency, Android adaptive foreground and background layers, AppGallery 216 × 216 layered). Please supply the source (SVG or layered file). | OPEN |
+| G2 | **iOS export compliance (`ITSAppUsesNonExemptEncryption`).** Lifa uses standard OS TLS and standard algorithms (AES-GCM; Shamir splitting for FR-DIG-003). Whether this is exempt is a legal/export decision for WZDRY, not a value I should assert. | OPEN |
+| G3 | **Allow `dl.google.com`** in this cloud environment's network settings (Allowed domains), so Android builds and tests can run in future sessions. | OPEN (owner action) |
+| G4 | **HarmonyOS build runner.** A self-hosted runner with DevEco command-line tools and an AppGallery Connect debug signing profile is needed for `harmony.yml`. Who provides it? | OPEN |
+| G5 | **Will PDF font.** Will PDFs must render Tshivenda names correctly (D-039). Proposed: Noto Serif or Noto Sans (OFL) embedded by Typst. | PROPOSED |
+| G6 | **Screenshot baselines.** CI records gallery screenshots (Roborazzi, XCUITest, Playwright). Once you approve them, they become golden images that fail CI on unintended visual change. | OPEN (owner review) |
+
 ## E. Known delivery constraints
 
 - iOS builds and XCUITest need macOS/Xcode, and HarmonyOS NEXT needs DevEco/hvigor. Neither runs in this Linux session, so that code is verified in CI on matching runners.
