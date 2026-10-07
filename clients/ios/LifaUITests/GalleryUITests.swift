@@ -37,10 +37,11 @@ final class GalleryUITests: XCTestCase {
     func testToggleRowSwitchesOn() {
         let app = XCUIApplication()
         app.launch()
-        let toggle = app.switches["Pause while I travel"]
-        for _ in 0..<12 where !toggle.isHittable { app.swipeUp() }
+        // The label includes the description ("Pause while I travel, Up to 180 days").
+        let toggle = app.switches.matching(NSPredicate(format: "label BEGINSWITH %@", "Pause while I travel")).firstMatch
+        for _ in 0..<20 where !(toggle.exists && toggle.isHittable) { app.swipeUp() }
         XCTAssertEqual(toggle.value as? String, "0")
-        toggle.tap()
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap() // the switch itself, at the trailing edge
         XCTAssertEqual(toggle.value as? String, "1")
     }
 

@@ -51,6 +51,11 @@ jobs:
                   base = name.split('_')[0] if name.startswith('gallery-') else name
                   if not base.endswith('.png'):
                       base = os.path.splitext(base)[0] + '.png'
+                  if name.startswith('Complete Issue Description'):
+                      print('::group::Issue in', test.get('testIdentifier', '?'))
+                      print(open(os.path.join(src, a['exportedFileName']), errors='replace').read()[:4000])
+                      print('::endgroup::')
+                      continue
                   shutil.copy(os.path.join(src, a['exportedFileName']), os.path.join(dst, base))
           PY
           ls "$RUNNER_TEMP/ios-screens" | head -50
