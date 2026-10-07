@@ -34,7 +34,9 @@ jobs:
           set -e
           DEST=docs/design/screens/android
           mkdir -p "$DEST" && rm -f "$DEST"/*.png
-          cp clients/android/core/design/build/outputs/roborazzi/*.png "$DEST"/ && mogrify -resize 50% "$DEST"/*.png
+          cp clients/android/core/design/build/outputs/roborazzi/*.png "$DEST"/
+          python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow==12.3.0
+          "$RUNNER_TEMP/venv/bin/python" -c "import glob,sys; from PIL import Image; [Image.open(f).reduce(2).save(f, optimize=True) for f in glob.glob(sys.argv[1] + '/*.png')]" "$DEST"
           ls "$DEST" | head -40
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

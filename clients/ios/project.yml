@@ -32,6 +32,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0" # XCUITest APIs are @MainActor; the app and LifaDesign stay on Swift 6
     dependencies:
       - target: Lifa
 schemes:
