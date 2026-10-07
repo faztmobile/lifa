@@ -26,6 +26,6 @@ jobs:
       - name: Playwright + axe (WCAG 2.2 AA, reflow, focus, touch targets)
         run: npm run e2e
         env: { CI: 'true' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with: { name: web-gallery-screens, path: clients/web/test-results }
