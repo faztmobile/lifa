@@ -45,7 +45,7 @@ final class GalleryUITests: XCTestCase {
     }
 
     /// Screenshots of the whole gallery, one per screen height.
-    private func capturePages(_ app: XCUIApplication, _ name: String, pages: Int = 10) {
+    private func capturePages(_ app: XCUIApplication, _ name: String, pages: Int = 6) {
         for i in 0..<pages {
             attachScreenshot(app, "gallery-\(name)-\(String(format: "%02d", i))")
             app.swipeUp(velocity: .slow)

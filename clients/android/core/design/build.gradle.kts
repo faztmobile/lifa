@@ -27,6 +27,14 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Print full assertion messages in CI logs (for example which touch targets are under 48 dp).
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
 dependencies {
     implementation(platform(libs.compose.bom))
     api(libs.compose.ui)

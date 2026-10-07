@@ -29,6 +29,9 @@ targets:
     type: bundle.ui-testing
     platform: iOS
     sources: [LifaUITests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: Lifa
 schemes:

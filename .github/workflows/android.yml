@@ -16,14 +16,34 @@ defaults:
 jobs:
   build-test:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write # only used by the manual screenshot-publish step
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: gradle/actions/wrapper-validation@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit, Compose UI (Robolectric) and screenshot tests
-        run: ./gradlew :core:design:testDebugUnitTest :core:design:recordRoborazziDebug
+      - name: Gallery screenshots (Roborazzi, light / dark / 200% font)
+        run: ./gradlew :core:design:testDebugUnitTest -Proborazzi.test.record=true --tests 'za.co.lifa.design.GalleryTest.screenshot*'
+      - name: Publish screenshots to this branch (manual runs only)
+        if: always() && github.event_name == 'workflow_dispatch'
+        working-directory: .
+        run: |
+          set -e
+          DEST=docs/design/screens/android
+          mkdir -p "$DEST" && rm -f "$DEST"/*.png
+          cp clients/android/core/design/build/outputs/roborazzi/*.png "$DEST"/ && mogrify -resize 50% "$DEST"/*.png
+          ls "$DEST" | head -40
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEST"
+          git commit -m "CI: Android gallery screenshots for ${GITHUB_SHA::7} [skip ci]" || exit 0
+          for i in 1 2 3 4; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && exit 0; sleep $((i*5)); done
+          exit 1
+      - name: Unit and Compose UI tests (Robolectric)
+        run: ./gradlew :core:design:testDebugUnitTest
       - name: Assemble both store flavours
         run: ./gradlew :app:assembleGmsDebug :app:assembleHmsDebug :app:lintGmsDebug
       - name: hms flavour has no Google services
