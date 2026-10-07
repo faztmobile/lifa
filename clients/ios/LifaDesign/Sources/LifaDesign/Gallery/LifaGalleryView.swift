@@ -6,7 +6,7 @@ public struct LifaGalleryView: View {
     public enum ThemeChoice: String, CaseIterable, Sendable { case system = "System", light = "Light", dark = "Dark" }
 
     @State private var theme: ThemeChoice
-    @State private var textSize = "100"
+    @State private var textSize = "system"
     @State private var regime = "in_community"
     @State private var interval = "30"
     @State private var billing = "yearly"
@@ -21,7 +21,8 @@ public struct LifaGalleryView: View {
     public init(theme: ThemeChoice = .system) { _theme = State(initialValue: theme) }
 
     private var total: Int { shares.values.reduce(0) { $0 + (Int($1) ?? 0) } }
-    private var dynamicType: DynamicTypeSize { textSize == "200" ? .accessibility3 : textSize == "150" ? .xxxLarge : .large }
+    /// "System" follows the user's Dynamic Type setting; 150 % and 200 % override it for review.
+    private var dynamicTypeOverride: DynamicTypeSize? { textSize == "200" ? .accessibility3 : textSize == "150" ? .xxxLarge : nil }
 
     public var body: some View {
         ScrollView {
@@ -151,8 +152,10 @@ public struct LifaGalleryView: View {
             .padding(LifaSpace.space4)
         }
         .background(LifaColor.background)
+        // Opaque strip behind the status bar so scrolled content does not run under the clock.
+        .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 0).background(LifaColor.background) }
         .preferredColorScheme(theme == .system ? nil : theme == .dark ? .dark : .light)
-        .dynamicTypeSize(dynamicType)
+        .modifier(DynamicTypeOverride(size: dynamicTypeOverride))
     }
 
     private var header: some View {
@@ -161,7 +164,7 @@ public struct LifaGalleryView: View {
             Text("Component gallery · iOS").lifaText(LifaTypography.caption).foregroundStyle(LifaColor.textMuted)
             LifaSegmentedControl("Theme", options: ThemeChoice.allCases.map { LifaChoice($0.rawValue, $0.rawValue) },
                                  selection: Binding(get: { theme.rawValue }, set: { theme = ThemeChoice(rawValue: $0) ?? .system }))
-            LifaSegmentedControl("Text size", options: ["100", "150", "200"].map { LifaChoice($0, "\($0)%") }, selection: $textSize)
+            LifaSegmentedControl("Text size", options: [LifaChoice("system", "System"), LifaChoice("150", "150%"), LifaChoice("200", "200%")], selection: $textSize)
         }
     }
 
@@ -198,3 +201,10 @@ public struct LifaGalleryView: View {
 
 #Preview("Light") { LifaGalleryView(theme: .light) }
 #Preview("Dark") { LifaGalleryView(theme: .dark) }
+
+private struct DynamicTypeOverride: ViewModifier {
+    let size: DynamicTypeSize?
+    func body(content: Content) -> some View {
+        if let size { content.dynamicTypeSize(size) } else { content }
+    }
+}

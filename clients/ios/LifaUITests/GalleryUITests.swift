@@ -44,10 +44,12 @@ final class GalleryUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1")
     }
 
-    /// Screenshots of the whole gallery, one per screen height.
-    private func capturePages(_ app: XCUIApplication, _ name: String, pages: Int = 6) {
-        for i in 0..<pages {
+    /// Screenshots of the whole gallery, scrolling until the last disclosure is on screen.
+    private func capturePages(_ app: XCUIApplication, _ name: String, maxPages: Int = 40) {
+        let last = app.staticTexts["Education only. Lifa does not recommend financial products."]
+        for i in 0..<maxPages {
             attachScreenshot(app, "gallery-\(name)-\(String(format: "%02d", i))")
+            if last.exists && last.isHittable { break }
             app.swipeUp(velocity: .slow)
         }
     }
