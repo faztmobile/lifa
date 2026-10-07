@@ -1,0 +1,27 @@
+# Lint and bundle the OpenAPI specs; enforce FR traceability (docs/architecture/04, 09).
+name: api
+on:
+  pull_request:
+    paths: ['api/**', 'tools/traceability.py', 'package.json', 'package-lock.json', '.github/workflows/api.yml']
+  push:
+    branches: [main]
+    paths: ['api/**', 'tools/traceability.py']
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run api:lint
+      - run: npm run api:bundle
+      - run: pip install pyyaml==6.0.1
+      - name: Traceability (every Release A FR is realised)
+        run: |
+          python3 -I tools/traceability.py --check
+          git diff --exit-code docs/architecture/09-traceability.md || { echo "Regenerate 09-traceability.md"; exit 1; }
