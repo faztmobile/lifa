@@ -444,7 +444,7 @@ schemas:
     required: [name, confidence]
     properties:
       name: { type: string, enum: [institution, account_type, account_last4, balance, value_date] }
-      value: {}
+      value: { type: [string, 'null'], description: 'Normalised string: amounts in cents, dates in ISO 8601' }
       confidence: { type: number, minimum: 0, maximum: 1 }
   Extraction:
     type: object

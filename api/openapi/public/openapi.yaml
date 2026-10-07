@@ -28,7 +28,6 @@ servers:
 security:
   - oidc: []
     dpop: []
-  - bffSession: []
 tags:
   - { name: Identity, description: 'Profile, verification, devices, step-up (FR-ONB)' }
   - { name: Account, description: 'Export and closure (FR-ONB-011)' }
@@ -272,5 +271,4 @@ components:
   securitySchemes:
     oidc: { $ref: './components/common.yaml#/securitySchemes/oidc' }
     dpop: { $ref: './components/common.yaml#/securitySchemes/dpop' }
-    bffSession: { $ref: './components/common.yaml#/securitySchemes/bffSession' }
     widgetToken: { $ref: './components/common.yaml#/securitySchemes/widgetToken' }

@@ -1,0 +1,124 @@
+openapi: 3.1.0
+info:
+  title: Lifa Inbound Webhooks
+  version: 0.1.0
+  summary: Server-to-server notifications from billing channels and the SMS gateway.
+  description: |
+    Served by lifa-commerce (billing) and lifa-identity (SMS receipts), behind APIM with an IP allow-list where the
+    provider publishes one. Each payload is authenticated by the provider's own mechanism, and failed checks return 401.
+    Handlers are idempotent (keyed on the provider event ID). They store the raw event for reconciliation, then emit
+    `subscription.changed` (FR-SUB-002). Payloads never contain Lifa estate data.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-WZDRY-Proprietary
+servers:
+  - url: https://hooks.lifa.co.za
+security: []
+tags:
+  - { name: Billing, description: 'Store and card billing notifications (FR-SUB-002)' }
+  - { name: Messaging, description: 'SMS delivery receipts' }
+paths:
+  /v1/app-store:
+    post:
+      operationId: appStoreServerNotification
+      tags: [Billing]
+      summary: App Store Server Notifications V2 (signedPayload JWS, verified against the Apple root CA chain)
+      x-lifa-fr: [FR-SUB-002, FR-SUB-005]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signedPayload]
+              properties:
+                signedPayload: { type: string }
+      responses:
+        '200': { description: Accepted }
+        '401': { description: Signature invalid }
+  /v1/google-play:
+    post:
+      operationId: googlePlayRtdn
+      tags: [Billing]
+      summary: Play Real-time Developer Notifications through a Cloud Pub/Sub push subscription (OIDC token audience checked)
+      x-lifa-fr: [FR-SUB-002, FR-SUB-005]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, subscription]
+              properties:
+                subscription: { type: string }
+                message:
+                  type: object
+                  required: [data, messageId]
+                  properties:
+                    data: { type: string, description: Base64 DeveloperNotification }
+                    messageId: { type: string }
+      responses:
+        '204': { description: Accepted }
+        '401': { description: Token invalid }
+  /v1/huawei-iap:
+    post:
+      operationId: huaweiIapNotification
+      tags: [Billing]
+      summary: Huawei IAP server notifications (Android HMS and HarmonyOS IAP Kit), signature verified with the IAP public key
+      x-lifa-fr: [FR-SUB-002, FR-SUB-005]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: Accepted }
+        '401': { description: Signature invalid }
+  /v1/paystack:
+    post:
+      operationId: paystackEvent
+      tags: [Billing]
+      summary: Paystack events (charge.success, subscription.*, invoice.payment_failed). HMAC-SHA512 in the x-paystack-signature header.
+      x-lifa-fr: [FR-SUB-002, FR-SUB-005, FR-SUB-006]
+      parameters:
+        - name: x-paystack-signature
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event, data]
+              properties:
+                event: { type: string }
+                data: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Accepted }
+        '401': { description: Signature invalid }
+  /v1/clickatell:
+    post:
+      operationId: clickatellDeliveryReceipt
+      tags: [Messaging]
+      summary: SMS delivery receipts. A failed check-in delivery raises an alert (NFR-OBS-001).
+      x-lifa-fr: [FR-DMS-002, NFR-OBS-001]
+      parameters:
+        - name: X-Lifa-Hook-Token
+          in: header
+          required: true
+          description: Shared secret configured in Clickatell, rotated through Key Vault
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: Accepted }
+        '401': { description: Token invalid }

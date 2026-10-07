@@ -334,10 +334,10 @@ paths:
               required: [phase]
               properties:
                 phase: { type: string, enum: [options, finish] }
-                attestationResponse:
-                  description: PublicKeyCredential JSON (finish phase)
-                  type: object
-                  additionalProperties: true
+                attestationResponseJson:
+                  description: PublicKeyCredential.toJSON() output, serialised as a string (finish phase). Passed through to webauthn4j unchanged.
+                  type: string
+                  contentMediaType: application/json
       responses:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
         '200':
@@ -346,7 +346,14 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                required: [phase]
+                properties:
+                  phase: { type: string, enum: [options, finish] }
+                  creationOptionsJson:
+                    description: PublicKeyCredentialCreationOptions JSON (options phase)
+                    type: [string, 'null']
+                    contentMediaType: application/json
+                  credentialId: { type: [string, 'null'], description: Registered credential ID (finish phase) }
 
   accountExports:
     post:
@@ -616,9 +623,10 @@ schemas:
       methods:
         type: array
         items: { type: string, enum: [device-signature, webauthn, totp] }
-      webauthnRequestOptions:
-        type: object
-        additionalProperties: true
+      webauthnRequestOptionsJson:
+        description: PublicKeyCredentialRequestOptions JSON, web only
+        type: [string, 'null']
+        contentMediaType: application/json
   StepUpDeviceSignature:
     type: object
     required: [method, challengeId, deviceId, signature]
@@ -629,11 +637,11 @@ schemas:
       signature: { type: string, description: Base64url ES256 signature over the nonce }
   StepUpWebAuthn:
     type: object
-    required: [method, challengeId, assertion]
+    required: [method, challengeId, assertionJson]
     properties:
       method: { type: string, const: webauthn }
       challengeId: { type: string, format: uuid }
-      assertion: { type: object, additionalProperties: true }
+      assertionJson: { type: string, contentMediaType: application/json, description: PublicKeyCredential.toJSON() of the assertion }
   StepUpTotp:
     type: object
     required: [method, challengeId, code]

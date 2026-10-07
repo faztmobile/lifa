@@ -213,7 +213,9 @@ schemas:
     required: [questionId]
     properties:
       questionId: { type: string }
-      value: { description: Typed by the question kind. Null means skipped. }
+      value:
+        description: 'Encoded by question kind: option value, comma-separated values for multi_choice, true/false, a number, or an ISO date. Null means skipped.'
+        type: [string, 'null']
   Assessment:
     type: object
     required: [definitionVersion, questions, answers, completed, estimatedMinutesLeft]

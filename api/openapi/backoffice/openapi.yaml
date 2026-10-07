@@ -1,0 +1,325 @@
+openapi: 3.1.0
+info:
+  title: Lifa Back-office API
+  version: 0.1.0
+  summary: Internal console API for Lifa Operations and the Compliance Officer (D-014).
+  description: |
+    Staff authenticate with the Entra workforce tenant through backoffice-bff. Access is just-in-time: a role is
+    activated through Privileged Identity Management with approval and is time-boxed (FRS 9.2).
+    Staff see **metadata only, never document content** (FRS 9.2). Every call is audited.
+    Release A has no activation endpoints. Verification cases can be reviewed and closed but never activate (D-023).
+  license:
+    name: Proprietary
+    identifier: LicenseRef-WZDRY-Proprietary
+servers:
+  - url: https://backoffice-api.internal.lifa.co.za
+security:
+  - staffSession: []
+tags:
+  - { name: Support, description: 'Account lookup by metadata' }
+  - { name: Deletion, description: '30-day closure window (FR-ONB-011)' }
+  - { name: Quarantine, description: 'Rejected and held uploads (FR-VLT-008, FR-VLT-011)' }
+  - { name: Cases, description: "Dead man's switch verification cases (FR-DMS-004..006)" }
+  - { name: Audit, description: 'Ledger integrity (NFR-AUD-001)' }
+paths:
+  /v1/support/accounts:
+    get:
+      operationId: searchAccounts
+      tags: [Support]
+      summary: Find an account by exact email or mobile. No partial or bulk search, to resist enumeration.
+      x-lifa-fr: [FRS-9.2]
+      parameters:
+        - name: email
+          in: query
+          schema: { type: string, format: email }
+        - name: mobile
+          in: query
+          schema: { type: string }
+        - name: reason
+          in: query
+          required: true
+          description: Support ticket reference, recorded in the audit ledger
+          schema: { type: string, minLength: 3 }
+      responses:
+        '200':
+          description: Matches (0 or 1)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, maxItems: 1, items: { $ref: '#/components/schemas/AccountMetadata' } }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/support/accounts/{userId}:
+    get:
+      operationId: getAccountMetadata
+      tags: [Support]
+      summary: Account metadata (plan channel, device count, counts of records, storage used). No estate content.
+      x-lifa-fr: [FRS-9.2]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountMetadata' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/support/accounts/{userId}/devices/{deviceId}:
+    delete:
+      operationId: staffRevokeDevice
+      tags: [Support]
+      summary: Revoke a lost device at the owner's verified request
+      x-lifa-fr: [FR-ONB-006]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Revoked }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/deletions:
+    get:
+      operationId: listPendingDeletions
+      tags: [Deletion]
+      summary: Accounts in the 30-day recovery window, and deletions that failed
+      x-lifa-fr: [FR-ONB-011]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, failed, completed] }
+      responses:
+        '200':
+          description: Deletions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [userId, requestedAt, deleteAfter, status]
+                      properties:
+                        userId: { type: string, format: uuid }
+                        requestedAt: { type: string, format: date-time }
+                        deleteAfter: { type: string, format: date-time }
+                        status: { type: string, enum: [pending, failed, completed] }
+                        shredCompletedAt: { type: [string, 'null'], format: date-time }
+                        failureStep: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/deletions/{userId}/retry:
+    post:
+      operationId: retryDeletion
+      tags: [Deletion]
+      summary: Retry a failed purge or crypto-shred step (two-person approval)
+      x-lifa-fr: [FR-ONB-011]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '202': { description: Retry queued }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/quarantine:
+    get:
+      operationId: listQuarantine
+      tags: [Quarantine]
+      summary: Malware rejections (hash, signature name, size, owner ID). The file itself is never stored or shown.
+      x-lifa-fr: [FR-VLT-008]
+      responses:
+        '200':
+          description: Quarantine records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, at, userId, sha256, signature]
+                      properties:
+                        id: { type: string, format: uuid }
+                        at: { type: string, format: date-time }
+                        userId: { type: string, format: uuid }
+                        sha256: { type: string }
+                        signature: { type: string }
+                        sizeBytes: { type: integer }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/cases:
+    get:
+      operationId: listVerificationCases
+      tags: [Cases]
+      summary: Open verification cases, oldest first
+      x-lifa-fr: [FR-DMS-004, FR-DMS-005, NFR-OBS-001]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/CaseStatus' }
+      responses:
+        '200':
+          description: Cases
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/VerificationCase' } }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/cases/{caseId}:
+    get:
+      operationId: getVerificationCase
+      tags: [Cases]
+      summary: Case detail. Evidence is listed as metadata; viewing it requires a case-scoped grant under four-eyes control.
+      x-lifa-fr: [FR-DMS-004, FRS-9.2]
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: Case
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationCase' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/cases/{caseId}/decisions:
+    post:
+      operationId: recordCaseDecision
+      tags: [Cases]
+      summary: Record a reviewer decision. Closing a case needs two different reviewers. Release A cannot activate (D-023).
+      x-lifa-fr: [FR-DMS-004, FR-DMS-005]
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, rationale]
+              properties:
+                decision: { type: string, enum: [request_more_evidence, reject_report, escalate_to_compliance, hold_pending_activation_release] }
+                rationale: { type: string, minLength: 10 }
+      responses:
+        '200':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationCase' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/audit/verification:
+    get:
+      operationId: verifyAuditChain
+      tags: [Audit]
+      summary: Verify the hash chain for a time window against the daily anchors in immutable storage
+      x-lifa-fr: [NFR-AUD-001]
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [intact, eventsChecked]
+                properties:
+                  intact: { type: boolean }
+                  eventsChecked: { type: integer, format: int64 }
+                  firstBreakAt: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    staffSession:
+      type: apiKey
+      in: cookie
+      name: __Host-lifa-staff
+      description: backoffice-bff session (Entra workforce tenant, phishing-resistant MFA, PIM-activated role)
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            required: [type, title, status]
+            properties:
+              type: { type: string }
+              title: { type: string }
+              status: { type: integer }
+              detail: { type: string }
+  schemas:
+    AccountMetadata:
+      type: object
+      required: [userId, accountType, createdAt, estateState]
+      properties:
+        userId: { type: string, format: uuid }
+        accountType: { type: string, enum: [owner, invitee] }
+        createdAt: { type: string, format: date-time }
+        estateState: { type: string, enum: [living, verifying, activated, administering, closed] }
+        subscriptionChannel: { type: [string, 'null'] }
+        entitlementVersion: { type: integer }
+        deviceCount: { type: integer }
+        recordCounts:
+          type: object
+          additionalProperties: { type: integer }
+        vaultUsedBytes: { type: integer, format: int64 }
+        pendingClosure: { type: boolean }
+    CaseStatus:
+      type: string
+      enum: [open, awaiting_evidence, under_review, escalated, cancelled_by_owner, rejected, held]
+    VerificationCase:
+      type: object
+      required: [id, estateId, trigger, status, openedAt, reports, decisions]
+      properties:
+        id: { type: string, format: uuid }
+        estateId: { type: string, format: uuid }
+        trigger: { type: string, enum: [dms_escalation, verifier_report] }
+        status: { $ref: '#/components/schemas/CaseStatus' }
+        tier: { type: string, description: Display only; rules come from entitlements (dms.multi_verifier) }
+        openedAt: { type: string, format: date-time }
+        slaDueAt: { type: string, format: date-time }
+        reports:
+          type: array
+          items:
+            type: object
+            required: [verifierPersonId, reported, at]
+            properties:
+              verifierPersonId: { type: string, format: uuid }
+              reported: { type: string, enum: [owner_incapacitated, owner_died] }
+              at: { type: string, format: date-time }
+              evidenceDocumentIds: { type: array, items: { type: string, format: uuid } }
+        decisions:
+          type: array
+          items:
+            type: object
+            required: [reviewerId, decision, at]
+            properties:
+              reviewerId: { type: string }
+              decision: { type: string }
+              rationale: { type: string }
+              at: { type: string, format: date-time }

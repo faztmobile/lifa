@@ -61,7 +61,7 @@ paths:
               required: [deviceId, acknowledgedLockScreenVisibility]
               properties:
                 deviceId: { type: string, format: uuid }
-                acknowledgedLockScreenVisibility: { type: boolean, const: true }
+                acknowledgedLockScreenVisibility: { type: boolean, description: 'Must be true; the server rejects false with 422' }
       responses:
         '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
         '201':

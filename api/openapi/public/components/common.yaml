@@ -223,11 +223,6 @@ securitySchemes:
     in: header
     name: DPoP
     description: RFC 9449 proof signed by the registered hardware-backed device key (D-022).
-  bffSession:
-    type: apiKey
-    in: cookie
-    name: __Host-lifa-session
-    description: Web only. HttpOnly, SameSite=Strict session issued by web-bff (D-021). Requests also need X-CSRF-Token.
   widgetToken:
     type: http
     scheme: bearer
