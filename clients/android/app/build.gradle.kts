@@ -73,11 +73,17 @@ dependencies {
 
 // The hms flavour must never pull Google Play services or Firebase (08-platforms §8.2).
 tasks.register("checkHmsHasNoGms") {
-    val runtime = configurations.named("hmsReleaseRuntimeClasspath")
+    // rootComponent is a Provider, so this task works with the configuration cache (gradle.properties).
+    val root = configurations.named("hmsReleaseRuntimeClasspath").flatMap { it.incoming.resolutionResult.rootComponent }
     doLast {
-        val bad = runtime.get().incoming.resolutionResult.allComponents
-            .map { it.id.displayName }
-            .filter { it.startsWith("com.google.android.gms") || it.startsWith("com.google.firebase") }
+        val seen = mutableSetOf<String>()
+        fun walk(c: org.gradle.api.artifacts.result.ResolvedComponentResult) {
+            if (!seen.add(c.id.displayName)) return
+            c.dependencies.filterIsInstance<org.gradle.api.artifacts.result.ResolvedDependencyResult>().forEach { walk(it.selected) }
+        }
+        walk(root.get())
+        val bad = seen.filter { it.startsWith("com.google.android.gms") || it.startsWith("com.google.firebase") }
         check(bad.isEmpty()) { "hms flavour depends on Google services: $bad" }
+        println("checkHmsHasNoGms: ${seen.size} components, none from Google Play services or Firebase")
     }
 }
