@@ -55,11 +55,11 @@ lifa/
 │       └── web-bff/  backoffice-bff/
 ├── clients/
 │   ├── android/                    # Gradle; flavours gms + hms
-│   │   ├── app/  core/{api,design,security,data}/
+│   │   ├── app/  core/{design (step 2), api, security, data}/
 │   │   ├── feature/{onboarding,score,will,estate,family,vault,emergency,plans,activation,executor,digital,trusts,marketplace,adviser,...}/
 │   │   ├── provider/{billing,push,location}/{gms,hms}/
 │   │   └── widget/                 # Glance emergency card
-│   ├── web/                        # Vite + React + TanStack Query (pnpm)
+│   ├── web/                        # Vite + React + TanStack Query (npm, D-046)
 │   ├── ios/                        # Xcode project + SPM packages, WidgetKit extension
 │   ├── harmony/                    # DevEco project (ArkTS), service widget
 │   └── backoffice/                 # Vite + React (internal)

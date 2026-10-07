@@ -1,0 +1,8 @@
+{
+  "name": "@lifa/design",
+  "version": "0.1.0",
+  "description": "Lifa design system for ArkUI. Generated tokens, icons and fonts come from design/generators/build.mjs.",
+  "main": "Index.ets",
+  "license": "UNLICENSED",
+  "dependencies": {}
+}

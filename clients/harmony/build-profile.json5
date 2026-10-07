@@ -1,0 +1,22 @@
+// HarmonyOS NEXT build profile (step 2).
+// [VERIFY] SDK versions: this environment cannot reach Huawei's SDK servers. compatibleSdkVersion 5.0.0(12) is the
+// HarmonyOS NEXT baseline; raise targetSdkVersion to the current release on the DevEco runner (D-010, 08 §8.4).
+{
+  "app": {
+    "signingConfigs": [],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": { "strictMode": { "caseSensitiveCheck": true, "useNormalizedOHMUrl": true } }
+      }
+    ],
+    "buildModeSet": [{ "name": "debug" }, { "name": "release" }]
+  },
+  "modules": [
+    { "name": "entry", "srcPath": "./entry", "targets": [{ "name": "default", "applyToProducts": ["default"] }] },
+    { "name": "design", "srcPath": "./design" }
+  ]
+}

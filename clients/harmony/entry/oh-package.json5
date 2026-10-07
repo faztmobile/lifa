@@ -1,0 +1,10 @@
+{
+  "name": "entry",
+  "version": "0.1.0",
+  "description": "Lifa HarmonyOS app (step 2: hosts the design-system gallery).",
+  "main": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@lifa/design": "file:../design"
+  }
+}
