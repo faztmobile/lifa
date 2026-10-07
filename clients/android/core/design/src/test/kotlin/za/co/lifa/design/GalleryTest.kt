@@ -60,12 +60,15 @@ class GalleryTest {
         for (i in 0 until sectionCount) {
             compose.onNodeWithTag("gallery").performScrollToIndex(i)
             compose.onAllNodesWithClick().forEach { node ->
-                val b = node.touchBoundsInRoot
+                // Measure the unclipped layout size: boundsInRoot is clipped by the scroll viewport, and
+                // lazy items kept for reuse report 0 x 0 while not placed.
+                if (!node.layoutInfo.isPlaced) return@forEach
+                val b = node.size
                 if (b.width < minPx || b.height < minPx) {
                     tooSmall += (node.config.getOrElseNullable(SemanticsProperties.Text) { null }?.joinToString()
                         ?: node.config.getOrElseNullable(SemanticsProperties.ContentDescription) { null }?.joinToString()
                         ?: "node ${node.id}") +
-                        " ${b.width.toInt()}x${b.height.toInt()}px"
+                        " ${b.width}x${b.height}px"
                 }
             }
         }
