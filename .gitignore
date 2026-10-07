@@ -1,0 +1,8 @@
+node_modules/
+api/generated/
+.DS_Store
+*.iml
+.idea/
+build/
+.gradle/
+local.properties

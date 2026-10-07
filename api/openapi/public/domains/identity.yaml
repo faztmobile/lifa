@@ -1,0 +1,658 @@
+# Identity, devices, step-up, consent, account lifecycle, invitations.
+# Module: identity (lifa-identity). FR-ONB-*, FR-NTF-006.
+# Sign-up and password login run through Entra External ID (native auth on mobile, hosted on web via web-bff).
+# These endpoints add what Entra does not do for Lifa: mobile OTP via Clickatell, ID checks, device binding, step-up, POPIA consent.
+
+paths:
+  me:
+    get:
+      operationId: getMe
+      tags: [Identity]
+      summary: Current user profile and onboarding state
+      x-lifa-fr: [FR-ONB-001, FR-ONB-002, FR-ONB-004]
+      responses:
+        '200':
+          description: Profile
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Me' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+    patch:
+      operationId: updateMe
+      tags: [Identity]
+      summary: Update names and contact preferences
+      x-lifa-fr: [FR-ONB-001]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/MePatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Me' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  mobileVerification:
+    post:
+      operationId: startMobileVerification
+      tags: [Identity]
+      summary: Send a 6-digit OTP to the mobile number (Clickatell), with a SIM-swap check
+      x-lifa-fr: [FR-ONB-001]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile]
+              properties:
+                mobile: { type: string, pattern: '^\+27[0-9]{9}$', description: E.164 South African number }
+      responses:
+        '202':
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [verificationId, maskedMobile, resendAfterSeconds]
+                properties:
+                  verificationId: { $ref: '../components/common.yaml#/schemas/Id' }
+                  maskedMobile: { type: string, examples: ['+27 82 *** 0143'] }
+                  resendAfterSeconds: { type: integer }
+        '429': { $ref: '../components/common.yaml#/responses/TooManyRequests' }
+
+  mobileVerificationConfirm:
+    post:
+      operationId: confirmMobileVerification
+      tags: [Identity]
+      summary: Confirm the mobile OTP
+      x-lifa-fr: [FR-ONB-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verificationId, code]
+              properties:
+                verificationId: { type: string, format: uuid }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+        '429': { $ref: '../components/common.yaml#/responses/TooManyRequests' }
+
+  identityDocument:
+    put:
+      operationId: setIdentityDocument
+      tags: [Identity]
+      summary: Record and validate the SA ID number or passport, and check minimum testamentary age
+      description: >-
+        SA ID: Luhn checksum plus date-of-birth match (FR-ONB-002). Passport: format only.
+        Returns age_below_minimum (422) when the owner is younger than the configured minimum testamentary age (FR-ONB-004).
+        The number is stored with field-level encryption.
+      x-lifa-fr: [FR-ONB-002, FR-ONB-004]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/IdentityDocumentInput' }
+      responses:
+        '200':
+          description: Validated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/IdentityDocumentResult' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  identityVerifications:
+    post:
+      operationId: startIdentityVerification
+      tags: [Identity]
+      summary: Start third-party ID document and liveness verification (vendor TBC, OPEN_QUESTIONS B6)
+      x-lifa-fr: [FR-ONB-003]
+      x-lifa-entitlement: onb.identity_verification
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Verification session created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/IdentityVerification' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    get:
+      operationId: getIdentityVerification
+      tags: [Identity]
+      summary: Latest identity verification status
+      x-lifa-fr: [FR-ONB-003]
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/IdentityVerification' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  consents:
+    get:
+      operationId: listConsents
+      tags: [Identity]
+      summary: Current POPIA consent per processing purpose
+      x-lifa-fr: [FR-ONB-007]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Consents
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ConsentSet' }
+    put:
+      operationId: setConsents
+      tags: [Identity]
+      summary: Grant or withdraw consent per purpose; each change records the notice version and a timestamp
+      x-lifa-fr: [FR-ONB-007, NFR-PRV-002]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [noticeVersion, decisions]
+              properties:
+                noticeVersion: { type: string }
+                decisions:
+                  type: array
+                  items:
+                    type: object
+                    required: [purpose, granted]
+                    properties:
+                      purpose: { $ref: '#/schemas/ConsentPurpose' }
+                      granted: { type: boolean }
+      responses:
+        '200':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ConsentSet' }
+        '422':
+          description: The planning purpose is required to use the service
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+
+  devices:
+    get:
+      operationId: listDevices
+      tags: [Identity]
+      summary: Registered devices
+      x-lifa-fr: [FR-ONB-006]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Devices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/schemas/Device' }
+    post:
+      operationId: registerDevice
+      tags: [Identity]
+      summary: Bind this installation's hardware-backed key to the account
+      description: >-
+        The first device is bound during sign-up. Every later device needs MFA through Entra plus an OTP to the
+        verified mobile and email, and the owner is notified on all existing devices. Platform attestation is verified
+        server-side: App Attest, Play Integrity, HMS Safety Detect, or HarmonyOS device certificate.
+      x-lifa-fr: [FR-ONB-005, FR-ONB-006]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/DeviceRegistration' }
+      responses:
+        '201':
+          description: Bound
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Device' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  device:
+    delete:
+      operationId: removeDevice
+      tags: [Identity]
+      summary: Unbind a device (revokes its refresh tokens and widget tokens)
+      x-lifa-fr: [FR-ONB-006]
+      x-lifa-step-up: device.manage
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  stepUpChallenges:
+    post:
+      operationId: createStepUpChallenge
+      tags: [Identity]
+      summary: Request a step-up challenge for a sensitive scope
+      x-lifa-fr: [FR-ONB-006]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope]
+              properties:
+                scope: { $ref: '../components/common.yaml#/schemas/StepUpScope' }
+                resourceId:
+                  description: Optional. Binds the token to one resource (for example one document).
+                  type: string
+                  format: uuid
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '201':
+          description: Challenge
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/StepUpChallenge' }
+
+  stepUpVerifications:
+    post:
+      operationId: verifyStepUp
+      tags: [Identity]
+      summary: Answer a step-up challenge and receive a short-lived step-up token
+      description: >-
+        Mobile: signature over the challenge nonce by the biometric-gated device key (Face ID or Touch ID, BiometricPrompt,
+        HarmonyOS User Authentication Kit). Web: WebAuthn assertion, with TOTP as fallback. SMS alone is never accepted
+        for vault.* scopes (FRS 9.3).
+      x-lifa-fr: [FR-ONB-005, FR-ONB-006]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/schemas/StepUpDeviceSignature'
+                - $ref: '#/schemas/StepUpWebAuthn'
+                - $ref: '#/schemas/StepUpTotp'
+              discriminator:
+                propertyName: method
+                mapping:
+                  device-signature: '#/schemas/StepUpDeviceSignature'
+                  webauthn: '#/schemas/StepUpWebAuthn'
+                  totp: '#/schemas/StepUpTotp'
+      responses:
+        '200':
+          description: Step-up token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stepUpToken, scope, expiresAt]
+                properties:
+                  stepUpToken: { type: string }
+                  scope: { $ref: '../components/common.yaml#/schemas/StepUpScope' }
+                  expiresAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '429': { $ref: '../components/common.yaml#/responses/TooManyRequests' }
+
+  webauthnCredentials:
+    post:
+      operationId: registerWebAuthnCredential
+      tags: [Identity]
+      summary: Register a passkey for web step-up (two-call ceremony; this call returns or accepts options)
+      x-lifa-fr: [FR-ONB-005]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phase]
+              properties:
+                phase: { type: string, enum: [options, finish] }
+                attestationResponse:
+                  description: PublicKeyCredential JSON (finish phase)
+                  type: object
+                  additionalProperties: true
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Creation options (options phase) or the registered credential (finish phase)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  accountExports:
+    post:
+      operationId: requestAccountExport
+      tags: [Account]
+      summary: Export all of the owner's data (JSON plus documents) as an encrypted archive
+      x-lifa-fr: [FR-ONB-011]
+      x-lifa-step-up: account.export
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  accountClosure:
+    post:
+      operationId: requestAccountClosure
+      tags: [Account]
+      summary: Close the account. Deletion and crypto-shred run after a 30-day recovery window.
+      x-lifa-fr: [FR-ONB-011]
+      x-lifa-step-up: account.delete
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmation]
+              properties:
+                confirmation: { type: string, const: DELETE }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '202':
+          description: Scheduled
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AccountClosure' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+    get:
+      operationId: getAccountClosure
+      tags: [Account]
+      summary: Pending closure, if any
+      x-lifa-fr: [FR-ONB-011]
+      responses:
+        '200':
+          description: Pending closure
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AccountClosure' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    delete:
+      operationId: cancelAccountClosure
+      tags: [Account]
+      summary: Recover the account during the 30-day window
+      x-lifa-fr: [FR-ONB-011]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  invitation:
+    get:
+      operationId: getInvitation
+      tags: [Invitations]
+      summary: Public view of an invitation. Shows the role and inviter's first name only, never estate content.
+      x-lifa-fr: [FR-NTF-006, FR-FAM-008]
+      security: []
+      parameters:
+        - $ref: '#/parameters/InvitationToken'
+      responses:
+        '200':
+          description: Redacted invitation
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/InvitationPublic' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  invitationAccept:
+    post:
+      operationId: acceptInvitation
+      tags: [Invitations]
+      summary: Accept an invitation. An existing invitee account keeps every role grant when it upgrades to an owner account.
+      x-lifa-fr: [FR-ONB-009, FR-FAM-008]
+      parameters:
+        - $ref: '#/parameters/InvitationToken'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/InvitationPublic' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  invitationDecline:
+    post:
+      operationId: declineInvitation
+      tags: [Invitations]
+      summary: Decline an invitation
+      x-lifa-fr: [FR-FAM-008]
+      security: []
+      parameters:
+        - $ref: '#/parameters/InvitationToken'
+      responses:
+        '400': { $ref: '../components/common.yaml#/responses/BadRequest' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  upgradeToOwner:
+    post:
+      operationId: upgradeInviteeToOwner
+      tags: [Invitations]
+      summary: Convert a lightweight invitee account into an owner account without losing role grants
+      x-lifa-fr: [FR-ONB-009]
+      responses:
+        '200':
+          description: Upgraded
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Me' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+parameters:
+  InvitationToken:
+    name: invitationToken
+    in: path
+    required: true
+    description: Signed, single-use, expiring token (FRS 9.3 scraping mitigation)
+    schema: { type: string, minLength: 32 }
+
+schemas:
+  AccountType:
+    type: string
+    enum: [owner, invitee]
+  Me:
+    type: object
+    required: [id, accountType, givenName, email, emailVerified, mobileVerified, identityStatus, onboarding]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      accountType: { $ref: '#/schemas/AccountType' }
+      givenName: { type: string }
+      familyName: { type: string }
+      email: { type: string, format: email }
+      emailVerified: { type: boolean }
+      maskedMobile: { type: string }
+      mobileVerified: { type: boolean }
+      identityStatus:
+        description: none, document_valid (FR-ONB-002 checks pass), or verified (FR-ONB-003)
+        type: string
+        enum: [none, document_valid, verified]
+      dateOfBirth: { $ref: '../components/common.yaml#/schemas/Date' }
+      locale: { type: string, const: en-ZA, description: English only in Release A (D-013) }
+      onboarding:
+        type: object
+        required: [accountVerified, identityRecorded, consentsRecorded, assessmentCompleted]
+        properties:
+          accountVerified: { type: boolean }
+          identityRecorded: { type: boolean }
+          consentsRecorded: { type: boolean }
+          assessmentCompleted: { type: boolean }
+      pendingClosure: { type: boolean }
+  MePatch:
+    type: object
+    properties:
+      givenName: { type: string, minLength: 1, maxLength: 100 }
+      familyName: { type: string, minLength: 1, maxLength: 100 }
+  IdentityDocumentInput:
+    type: object
+    required: [type, number]
+    properties:
+      type: { type: string, enum: [sa_id, passport] }
+      number: { type: string, writeOnly: true, maxLength: 20 }
+      dateOfBirth:
+        description: Required for passports. For SA IDs it is derived and must match when provided.
+        $ref: '../components/common.yaml#/schemas/Date'
+      issuingCountry: { type: string, pattern: '^[A-Z]{3}$', description: 'ISO 3166-1 alpha-3, passports only' }
+  IdentityDocumentResult:
+    type: object
+    required: [type, formatValid, dateOfBirth, meetsMinimumAge]
+    properties:
+      type: { type: string, enum: [sa_id, passport] }
+      formatValid: { type: boolean }
+      checksumValid: { type: [boolean, 'null'], description: SA ID only }
+      dateOfBirth: { $ref: '../components/common.yaml#/schemas/Date' }
+      dateOfBirthMatches: { type: [boolean, 'null'] }
+      meetsMinimumAge: { type: boolean, description: FR-ONB-004 }
+      maskedNumber: { type: string }
+  IdentityVerification:
+    type: object
+    required: [id, status]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      status: { type: string, enum: [pending, in_progress, verified, failed, expired] }
+      providerSessionUrl: { type: [string, 'null'], format: uri }
+      completedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  ConsentPurpose:
+    description: FR-ONB-007 purposes.
+    type: string
+    enum: [planning, special_personal_information, sharing_with_trusted_people, marketing]
+  ConsentSet:
+    type: object
+    required: [noticeVersion, items]
+    properties:
+      noticeVersion: { type: string }
+      items:
+        type: array
+        items:
+          type: object
+          required: [purpose, granted, noticeVersion, decidedAt]
+          properties:
+            purpose: { $ref: '#/schemas/ConsentPurpose' }
+            granted: { type: boolean }
+            noticeVersion: { type: string }
+            decidedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  Platform:
+    type: string
+    enum: [ios, android_gms, android_hms, harmonyos, web]
+  DeviceRegistration:
+    type: object
+    required: [platform, publicKeyJwk, attestation, displayName]
+    properties:
+      platform: { $ref: '#/schemas/Platform' }
+      displayName: { type: string, maxLength: 60 }
+      publicKeyJwk:
+        description: P-256 public key (EC JWK). The private key never leaves the Secure Enclave, Keystore or HUKS.
+        type: object
+        required: [kty, crv, x, y]
+        properties:
+          kty: { type: string, const: EC }
+          crv: { type: string, const: P-256 }
+          x: { type: string }
+          y: { type: string }
+      attestation:
+        type: object
+        required: [format, payload]
+        properties:
+          format: { type: string, enum: [app_attest, play_integrity, hms_safety_detect, harmony_device_cert, none_web] }
+          payload: { type: string }
+      hardwareBacked: { type: boolean }
+      integrity:
+        description: Client-side jailbreak or root signals, reported for graceful degradation. Not trusted on its own.
+        type: object
+        properties:
+          compromisedSignals: { type: array, items: { type: string } }
+  Device:
+    type: object
+    required: [id, platform, displayName, trustLevel, registeredAt]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      platform: { $ref: '#/schemas/Platform' }
+      displayName: { type: string }
+      trustLevel:
+        description: reduced = jailbreak or root detected, or attestation failed. Vault content and widget are disabled; planning stays available.
+        type: string
+        enum: [full, reduced]
+      registeredAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      lastSeenAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      current: { type: boolean }
+  StepUpChallenge:
+    type: object
+    required: [challengeId, nonce, expiresAt, methods]
+    properties:
+      challengeId: { $ref: '../components/common.yaml#/schemas/Id' }
+      nonce: { type: string }
+      expiresAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      methods:
+        type: array
+        items: { type: string, enum: [device-signature, webauthn, totp] }
+      webauthnRequestOptions:
+        type: object
+        additionalProperties: true
+  StepUpDeviceSignature:
+    type: object
+    required: [method, challengeId, deviceId, signature]
+    properties:
+      method: { type: string, const: device-signature }
+      challengeId: { type: string, format: uuid }
+      deviceId: { type: string, format: uuid }
+      signature: { type: string, description: Base64url ES256 signature over the nonce }
+  StepUpWebAuthn:
+    type: object
+    required: [method, challengeId, assertion]
+    properties:
+      method: { type: string, const: webauthn }
+      challengeId: { type: string, format: uuid }
+      assertion: { type: object, additionalProperties: true }
+  StepUpTotp:
+    type: object
+    required: [method, challengeId, code]
+    properties:
+      method: { type: string, const: totp }
+      challengeId: { type: string, format: uuid }
+      code: { type: string, pattern: '^[0-9]{6}$' }
+  AccountClosure:
+    type: object
+    required: [requestedAt, deleteAfter]
+    properties:
+      requestedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      deleteAfter: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  InvitationPublic:
+    type: object
+    required: [status, role, inviterGivenName, expiresAt]
+    properties:
+      status: { type: string, enum: [pending, accepted, declined, expired, revoked] }
+      role: { $ref: './access.yaml#/schemas/Role' }
+      roleExplanation: { type: string, description: Plain-language role description with no estate details (FR-NTF-006) }
+      inviterGivenName: { type: string }
+      expiresAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }

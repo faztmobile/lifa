@@ -1,0 +1,206 @@
+# Notifications, client configuration and content. Modules: notification, (config served by lifa-core). FR-NTF-*.
+
+paths:
+  notificationPreferences:
+    get:
+      operationId: getNotificationPreferences
+      tags: [Notifications]
+      summary: Per-category channel preferences. Security and verification categories cannot be switched off.
+      x-lifa-fr: [FR-NTF-001]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Preferences
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/NotificationPreferences' }
+    put:
+      operationId: setNotificationPreferences
+      tags: [Notifications]
+      summary: Update preferences (returns 422 if a mandatory category is disabled)
+      x-lifa-fr: [FR-NTF-001, NFR-PRV-002]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/NotificationPreferences' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/NotificationPreferences' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  pushRegistration:
+    put:
+      operationId: registerPushToken
+      tags: [Notifications]
+      summary: Register or refresh this installation's push token
+      x-lifa-fr: [FR-NTF-001]
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, token]
+              properties:
+                provider: { type: string, enum: [apns, fcm, hms_push, harmony_push, web_push] }
+                token: { type: string }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+    delete:
+      operationId: unregisterPushToken
+      tags: [Notifications]
+      summary: Remove this installation's push token
+      x-lifa-fr: [FR-NTF-001]
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  inbox:
+    get:
+      operationId: listInbox
+      tags: [Notifications]
+      summary: In-app notification content, fetched after unlock. Push payloads carry only a generic title and an inbox ID (FR-NTF-004).
+      x-lifa-fr: [FR-NTF-004, FR-NTF-002, FR-NTF-003]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/Cursor'
+        - $ref: '../components/common.yaml#/parameters/Limit'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Inbox
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../components/common.yaml#/schemas/Page'
+                  - type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/schemas/InboxItem' } }
+
+  inboxRead:
+    post:
+      operationId: markInboxRead
+      tags: [Notifications]
+      summary: Mark an inbox item as read
+      x-lifa-fr: [FR-NTF-001]
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  clientConfig:
+    get:
+      operationId: getClientConfig
+      tags: [Config]
+      summary: Minimum supported versions, release flags and certificate pin set. Public.
+      x-lifa-fr: [NFR-DEV-001, NFR-SEC-001]
+      security: []
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema: { $ref: './identity.yaml#/schemas/Platform' }
+        - name: appVersion
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '400': { $ref: '../components/common.yaml#/responses/BadRequest' }
+        '200':
+          description: Config
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ClientConfig' }
+
+  content:
+    get:
+      operationId: getContent
+      tags: [Config]
+      summary: Plain-language content and mandatory disclosures (Grade 8 reading level, NFR-USE-002)
+      x-lifa-fr: [NFR-USE-002, FR-WIL-018]
+      security: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-z0-9-]+(/[a-z0-9-]+)*$' }
+      responses:
+        '200':
+          description: Content
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key, version, title, body]
+                properties:
+                  key: { type: string }
+                  version: { type: string }
+                  title: { type: string }
+                  body: { type: string, description: CommonMark subset }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+schemas:
+  NotificationCategory:
+    type: string
+    enum: [security, verification, check_in, reminders, life_events, document_expiry, legacy_review, product_updates, marketing]
+  NotificationPreferences:
+    type: object
+    required: [categories]
+    properties:
+      categories:
+        type: array
+        items:
+          type: object
+          required: [category, push, email, sms]
+          properties:
+            category: { $ref: '#/schemas/NotificationCategory' }
+            mandatory: { type: boolean, readOnly: true }
+            push: { type: boolean }
+            email: { type: boolean }
+            sms: { type: boolean }
+  InboxItem:
+    type: object
+    required: [id, category, title, createdAt, read]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      category: { $ref: '#/schemas/NotificationCategory' }
+      title: { type: string }
+      body: { type: string }
+      target: { type: [string, 'null'], examples: ['lifa://vault/documents/…'] }
+      createdAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      read: { type: boolean }
+  ClientConfig:
+    type: object
+    required: [minimumVersion, latestVersion, flags, pins]
+    properties:
+      minimumVersion: { type: string }
+      latestVersion: { type: string }
+      flags:
+        description: Release flags (not entitlements), for example release.dms
+        type: object
+        additionalProperties: { type: boolean }
+      pins:
+        description: SPKI SHA-256 pins, current and next, for certificate rotation. Apps also ship a baked-in set.
+        type: array
+        items: { type: string }
+      supportUrl: { type: string, format: uri }
+      informationOfficerContact: { type: string }

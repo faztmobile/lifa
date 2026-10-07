@@ -1,0 +1,461 @@
+# Document vault and statement extraction. Modules: vault, extraction (lifa-protected, pool B). FR-VLT-*, FR-AST-005.
+# Content endpoints need a step-up token. Every read is audited synchronously before bytes are returned (D-025).
+
+paths:
+  vault:
+    get:
+      operationId: getVaultSummary
+      tags: [Vault]
+      summary: Storage used vs quota, and folder counts
+      x-lifa-fr: [FR-VLT-003]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/VaultSummary' }
+
+  folders:
+    get:
+      operationId: listFolders
+      tags: [Vault]
+      summary: Folders (system folders by document type, plus the owner's own)
+      x-lifa-fr: [FR-VLT-004]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Folders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Folder' } }
+    post:
+      operationId: createFolder
+      tags: [Vault]
+      summary: Create a folder
+      x-lifa-fr: [FR-VLT-007]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Folder' }
+
+  documents:
+    get:
+      operationId: listDocuments
+      tags: [Vault]
+      summary: Document metadata (never content)
+      x-lifa-fr: [FR-VLT-004, FR-VLT-005, FR-VLT-006]
+      parameters:
+        - name: folderId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          schema: { $ref: '#/schemas/DocumentType' }
+        - name: expiringWithinDays
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 365 }
+        - $ref: '../components/common.yaml#/parameters/Cursor'
+        - $ref: '../components/common.yaml#/parameters/Limit'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../components/common.yaml#/schemas/Page'
+                  - type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/schemas/Document' } }
+    post:
+      operationId: uploadDocument
+      tags: [Vault]
+      summary: Upload a document (25 MB at most; PDF, JPG, PNG, HEIC or DOCX)
+      description: >-
+        Pipeline (synchronous): size and type check, malware scan with infected files rejected (FR-VLT-008), type suggestion (FR-VLT-004),
+        secret detection (FR-VLT-011), then encryption under a fresh data key wrapped by the owner's KEK (FR-VLT-002), then storage and audit.
+        If secret detection fires, the document is created in held state and the response carries
+        a possible_secret warning. The owner must confirm or delete it.
+      x-lifa-fr: [FR-VLT-001, FR-VLT-002, FR-VLT-003, FR-VLT-004, FR-VLT-005, FR-VLT-008, FR-VLT-009, FR-VLT-011]
+      x-lifa-step-up: vault.write
+      x-lifa-entitlement: vlt.storage_bytes
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [metadata, file]
+              properties:
+                metadata: { $ref: '#/schemas/DocumentInput' }
+                file:
+                  type: string
+                  contentMediaType: application/octet-stream
+            encoding:
+              metadata:
+                contentType: application/json
+              file:
+                contentType: application/pdf, image/jpeg, image/png, image/heic, application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      responses:
+        '201':
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/DocumentWrite' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '403':
+          description: quota_exceeded or reduced device trust
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+        '413':
+          description: payload_too_large (over 25 MB)
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+        '415':
+          description: unsupported_media_type
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+        '422':
+          description: malware_detected. The file is rejected and never stored.
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+
+  document:
+    parameters:
+      - $ref: '#/parameters/DocumentId'
+    get:
+      operationId: getDocument
+      tags: [Vault]
+      summary: Document metadata and links
+      x-lifa-fr: [FR-VLT-005]
+      responses:
+        '200':
+          description: Document
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Document' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    patch:
+      operationId: updateDocument
+      tags: [Vault]
+      summary: Change type, title, folder, expiry or links
+      x-lifa-fr: [FR-VLT-004, FR-VLT-005, FR-VLT-006, FR-AST-010]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/DocumentPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Document' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+    delete:
+      operationId: deleteDocument
+      tags: [Vault]
+      summary: Delete a document. Shared household documents need both owners' consent (FR-PRM-007).
+      x-lifa-fr: [FR-PRM-007]
+      x-lifa-step-up: vault.write
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '202':
+          description: Awaiting spouse consent
+          content:
+            application/json:
+              schema: { $ref: './estate.yaml#/schemas/SharedDeletionRequest' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  documentConfirm:
+    post:
+      operationId: confirmHeldDocument
+      tags: [Vault]
+      summary: Keep a document that was held after a possible_secret warning (the owner confirms it holds no secret)
+      x-lifa-fr: [FR-VLT-011]
+      x-lifa-step-up: vault.write
+      parameters:
+        - $ref: '#/parameters/DocumentId'
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Document' }
+
+  documentContent:
+    get:
+      operationId: getDocumentContent
+      tags: [Vault]
+      summary: Decrypt and stream the document. Requires step-up; the read is audited, and the owner is notified when a trusted person reads.
+      x-lifa-fr: [FR-VLT-002, FR-VLT-009, FR-ONB-006, FR-PRM-005]
+      x-lifa-step-up: vault.read
+      parameters:
+        - $ref: '#/parameters/DocumentId'
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      responses:
+        '200':
+          description: Document bytes. Sent with Cache-Control no-store; clients keep them in memory or the encrypted cache only.
+          content:
+            application/octet-stream:
+              schema: { type: string, contentMediaType: application/octet-stream }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  vaultActivity:
+    get:
+      operationId: listVaultActivity
+      tags: [Vault]
+      summary: The owner's view of the immutable audit log (views, downloads, shares, grants)
+      x-lifa-fr: [FR-VLT-009, FR-PRM-005]
+      parameters:
+        - name: documentId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: '../components/common.yaml#/parameters/Cursor'
+        - $ref: '../components/common.yaml#/parameters/Limit'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Activity
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../components/common.yaml#/schemas/Page'
+                  - type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/schemas/ActivityEvent' } }
+
+  estatePack:
+    post:
+      operationId: generateEstatePack
+      tags: [Vault]
+      summary: Generate the Estate Pack PDF (inventory, people, will location, key documents index, instructions)
+      description: Included in Plus and Family. A one-off add-on (R199) for Free, sold through the catalogue.
+      x-lifa-fr: [FR-VLT-010]
+      x-lifa-entitlement: vlt.estate_pack
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  extractions:
+    post:
+      operationId: startExtraction
+      tags: [Extraction]
+      summary: Extract institution, account type, balance and date from an uploaded statement (Plus). Completes within 60 s.
+      x-lifa-fr: [FR-AST-005, NFR-PRF-003]
+      x-lifa-entitlement: ast.statement_extraction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentId]
+              properties:
+                documentId: { type: string, format: uuid }
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  extraction:
+    parameters:
+      - name: extractionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getExtraction
+      tags: [Extraction]
+      summary: Extracted fields for the owner to check ("Nothing is saved until you confirm")
+      x-lifa-fr: [FR-AST-005]
+      responses:
+        '200':
+          description: Extraction
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Extraction' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    delete:
+      operationId: discardExtraction
+      tags: [Extraction]
+      summary: Discard the extraction
+      x-lifa-fr: [FR-AST-005]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  extractionConfirm:
+    post:
+      operationId: confirmExtraction
+      tags: [Extraction]
+      summary: Confirm (and correct) the fields. This creates an evidenced asset linked to the statement.
+      x-lifa-fr: [FR-AST-005, FR-AST-004, FR-AST-010]
+      x-lifa-entitlement: ast.max_records
+      parameters:
+        - name: extractionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './estate.yaml#/schemas/AssetInput' }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '201':
+          description: Asset created
+          content:
+            application/json:
+              schema: { $ref: './estate.yaml#/schemas/AssetWrite' }
+
+parameters:
+  DocumentId:
+    name: documentId
+    in: path
+    required: true
+    schema: { type: string, format: uuid }
+
+schemas:
+  DocumentType:
+    description: FR-VLT-004 taxonomy
+    type: string
+    enum: [will, id, marriage_certificate, title_deed, policy, statement, trust_deed, company_document, tax, other]
+  VaultSummary:
+    type: object
+    required: [usedBytes, quotaBytes, encryptionNote, folders]
+    properties:
+      usedBytes: { type: integer, format: int64 }
+      quotaBytes: { type: integer, format: int64 }
+      encryptionNote: { type: string, examples: ['Encrypted with your own key'] }
+      folders: { type: array, items: { $ref: '#/schemas/Folder' } }
+  Folder:
+    type: object
+    required: [id, name, system, documentCount]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      name: { type: string }
+      system: { type: boolean }
+      documentCount: { type: integer }
+      releaseRule: { oneOf: [{ $ref: './access.yaml#/schemas/ReleaseRule' }, { type: 'null' }] }
+  DocumentLinks:
+    description: FR-VLT-005 chain from document to asset, beneficiary and executor
+    type: object
+    properties:
+      assetIds: { type: array, items: { type: string, format: uuid } }
+      personIds: { type: array, items: { type: string, format: uuid } }
+      roles: { type: array, items: { $ref: './access.yaml#/schemas/Role' } }
+  DocumentInput:
+    type: object
+    required: [title]
+    properties:
+      title: { type: string, maxLength: 120 }
+      type: { $ref: '#/schemas/DocumentType' }
+      folderId: { type: [string, 'null'], format: uuid }
+      expiresOn: { $ref: '../components/common.yaml#/schemas/Date' }
+      links: { $ref: '#/schemas/DocumentLinks' }
+  DocumentPatch:
+    type: object
+    properties:
+      title: { type: string, maxLength: 120 }
+      type: { $ref: '#/schemas/DocumentType' }
+      folderId: { type: [string, 'null'], format: uuid }
+      expiresOn: { type: [string, 'null'], format: date }
+      links: { $ref: '#/schemas/DocumentLinks' }
+  Document:
+    type: object
+    required: [id, title, type, typeSuggested, state, sizeBytes, mediaType, createdAt]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      title: { type: string }
+      type: { $ref: '#/schemas/DocumentType' }
+      typeSuggested: { type: boolean, description: True when the type came from auto-classification }
+      state: { type: string, enum: [stored, held] }
+      folderId: { type: [string, 'null'], format: uuid }
+      sizeBytes: { type: integer, format: int64 }
+      mediaType: { type: string }
+      pageCount: { type: [integer, 'null'] }
+      expiresOn: { type: [string, 'null'], format: date }
+      expiryReminderDue: { type: boolean }
+      links: { $ref: '#/schemas/DocumentLinks' }
+      releaseRule: { oneOf: [{ $ref: './access.yaml#/schemas/ReleaseRule' }, { type: 'null' }] }
+      releaseSummary: { type: [string, 'null'], examples: ['Released to Sipho on death'] }
+      createdAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  DocumentWrite:
+    allOf:
+      - $ref: '#/schemas/Document'
+      - type: object
+        properties:
+          warnings: { type: array, items: { $ref: '../components/common.yaml#/schemas/Warning' } }
+  ActivityEvent:
+    type: object
+    required: [id, at, actor, action, objectType]
+    properties:
+      id: { type: string }
+      at: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      actor:
+        type: object
+        required: [kind, displayName]
+        properties:
+          kind: { type: string, enum: [owner, trusted_person, lifa_staff, system] }
+          displayName: { type: string }
+      action: { type: string, enum: [viewed, downloaded, uploaded, shared, grant_created, grant_revoked, rule_changed, deleted] }
+      objectType: { type: string }
+      objectLabel: { type: string }
+  ExtractedField:
+    type: object
+    required: [name, confidence]
+    properties:
+      name: { type: string, enum: [institution, account_type, account_last4, balance, value_date] }
+      value: {}
+      confidence: { type: number, minimum: 0, maximum: 1 }
+  Extraction:
+    type: object
+    required: [id, status, documentId]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      status: { type: string, enum: [queued, running, ready, failed] }
+      documentId: { type: string, format: uuid }
+      documentLabel: { type: string, examples: ['Unit trust statement, Aug 2026'] }
+      pages: { type: integer }
+      durationSeconds: { type: integer }
+      fields: { type: array, items: { $ref: '#/schemas/ExtractedField' } }
+      suggestedAsset: { $ref: './estate.yaml#/schemas/AssetInput' }
+      ownershipHint: { type: [string, 'null'], examples: ["You're married in community of property, so half belongs to Sipho."] }

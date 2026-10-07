@@ -1,0 +1,288 @@
+# Entitlements and billing. Modules: entitlement, billing (lifa-commerce). FR-SUB-*.
+# Clients read entitlement keys and limits; they never branch on a plan name (FR-SUB-001, D-004).
+
+paths:
+  entitlements:
+    get:
+      operationId: getEntitlements
+      tags: [Commerce]
+      summary: The caller's effective entitlement set (feature keys, limits, usage)
+      x-lifa-fr: [FR-SUB-001]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Entitlements
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EntitlementSet' }
+
+  catalogue:
+    get:
+      operationId: getCatalogue
+      tags: [Commerce]
+      summary: Purchasable plans and add-ons for a sales channel. Prices come from configuration.
+      x-lifa-fr: [FR-SUB-002, FR-SUB-006]
+      parameters:
+        - name: channel
+          in: query
+          required: true
+          schema: { $ref: '#/schemas/Channel' }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Catalogue
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Catalogue' }
+
+  trials:
+    post:
+      operationId: startTrial
+      tags: [Commerce]
+      summary: Start the 14-day Plus trial, once per owner. On store channels, use the store introductory offer instead.
+      x-lifa-fr: [FR-SUB-003]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Trial started
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Subscription' }
+        '409':
+          description: Trial already used
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+
+  purchaseVerifications:
+    post:
+      operationId: verifyStorePurchase
+      tags: [Commerce]
+      summary: Submit a store purchase for server-side verification and entitlement grant
+      description: >-
+        Store server notifications (webhooks spec) are the source of truth for renewals and refunds.
+        This call speeds up the first grant after purchase. The purchase must carry the Lifa user ID
+        (appAccountToken, obfuscatedAccountId, or Huawei developerPayload).
+      x-lifa-fr: [FR-SUB-002]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/schemas/AppStorePurchase'
+                - $ref: '#/schemas/GooglePlayPurchase'
+                - $ref: '#/schemas/HuaweiPurchase'
+              discriminator:
+                propertyName: channel
+                mapping:
+                  app_store: '#/schemas/AppStorePurchase'
+                  google_play: '#/schemas/GooglePlayPurchase'
+                  huawei_appgallery: '#/schemas/HuaweiPurchase'
+                  harmony_iap: '#/schemas/HuaweiPurchase'
+      responses:
+        '200':
+          description: Verified; entitlements updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Subscription' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  checkoutSessions:
+    post:
+      operationId: createCheckoutSession
+      tags: [Commerce]
+      summary: Create a Paystack hosted-checkout session (web), for a plan or a one-off add-on
+      x-lifa-fr: [FR-SUB-002, FR-SUB-006]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId: { type: string }
+                returnUrl: { type: string, format: uri }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '201':
+          description: Redirect the browser to authorizationUrl
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reference, authorizationUrl]
+                properties:
+                  reference: { type: string }
+                  authorizationUrl: { type: string, format: uri }
+
+  subscription:
+    get:
+      operationId: getSubscription
+      tags: [Commerce]
+      summary: Current subscription across all channels
+      x-lifa-fr: [FR-SUB-002, FR-SUB-005]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Subscription (status none on Free)
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Subscription' }
+
+  subscriptionCancel:
+    post:
+      operationId: cancelWebSubscription
+      tags: [Commerce]
+      summary: Cancel at period end (Paystack only). Store subscriptions are managed in the store; use manageUrl.
+      x-lifa-fr: [FR-SUB-004]
+      responses:
+        '200':
+          description: Cancellation scheduled
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Subscription' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  invoices:
+    get:
+      operationId: listInvoices
+      tags: [Commerce]
+      summary: VAT tax invoices for web (Paystack) purchases
+      x-lifa-fr: [FR-SUB-006]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/Cursor'
+        - $ref: '../components/common.yaml#/parameters/Limit'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Invoices
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../components/common.yaml#/schemas/Page'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/schemas/Invoice' }
+
+  invoicePdf:
+    get:
+      operationId: getInvoicePdf
+      tags: [Commerce]
+      summary: Download a tax invoice
+      x-lifa-fr: [FR-SUB-006]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+schemas:
+  Channel:
+    type: string
+    enum: [app_store, google_play, huawei_appgallery, harmony_iap, web]
+  Entitlement:
+    type: object
+    required: [enabled]
+    properties:
+      enabled: { type: boolean }
+      limit: { type: [integer, 'null'], format: int64, description: null = unlimited }
+      used: { type: [integer, 'null'], format: int64 }
+      readOnlyOverLimit:
+        description: FR-SUB-004. Items above the limit after a downgrade stay readable but cannot be edited.
+        type: boolean
+  EntitlementSet:
+    type: object
+    required: [version, keys]
+    properties:
+      version: { type: integer, description: Increases on every change. Clients refetch on entitlement.changed. }
+      badge:
+        description: Display-only label (for example "PLUS" on Home). Clients must not branch on it.
+        type: [string, 'null']
+      trialAvailable: { type: boolean }
+      keys:
+        description: >-
+          Feature key to entitlement. The keys are defined in content/entitlements/plans.yaml and documented in
+          docs/architecture/06-identity-security.md §6.4.
+        type: object
+        additionalProperties: { $ref: '#/schemas/Entitlement' }
+  Product:
+    type: object
+    required: [productId, kind, title, price]
+    properties:
+      productId: { type: string, description: Store SKU or Lifa product ID }
+      kind: { type: string, enum: [subscription, addon] }
+      title: { type: string }
+      period: { type: [string, 'null'], enum: [month, year, null] }
+      price: { $ref: '../components/common.yaml#/schemas/Money' }
+      introOffer: { type: [string, 'null'], description: For example "14-day free trial" }
+      features: { type: array, items: { type: string } }
+      highlight: { type: [string, 'null'] }
+  Catalogue:
+    type: object
+    required: [channel, products]
+    properties:
+      channel: { $ref: '#/schemas/Channel' }
+      products: { type: array, items: { $ref: '#/schemas/Product' } }
+      executorBenefitNote: { type: string, description: '"Paid plans give your executor 24 months…"' }
+  Subscription:
+    type: object
+    required: [status]
+    properties:
+      status: { type: string, enum: [none, trialing, active, grace, cancelled_pending, expired] }
+      channel: { oneOf: [{ $ref: '#/schemas/Channel' }, { type: 'null' }] }
+      productId: { type: [string, 'null'] }
+      currentPeriodEnd: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      graceEndsAt:
+        description: FR-SUB-005. Retry window of 14 days, then downgrade to Free.
+        $ref: '../components/common.yaml#/schemas/Timestamp'
+      manageUrl: { type: [string, 'null'], format: uri }
+  AppStorePurchase:
+    type: object
+    required: [channel, signedTransaction]
+    properties:
+      channel: { type: string, const: app_store }
+      signedTransaction: { type: string, description: StoreKit 2 JWS transaction }
+  GooglePlayPurchase:
+    type: object
+    required: [channel, productId, purchaseToken]
+    properties:
+      channel: { type: string, const: google_play }
+      productId: { type: string }
+      purchaseToken: { type: string }
+  HuaweiPurchase:
+    type: object
+    required: [channel, productId, purchaseToken]
+    properties:
+      channel: { type: string, enum: [huawei_appgallery, harmony_iap] }
+      productId: { type: string }
+      purchaseToken: { type: string }
+      subscriptionId: { type: string }
+  Invoice:
+    type: object
+    required: [id, number, issuedAt, total, vat]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      number: { type: string }
+      issuedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      total: { $ref: '../components/common.yaml#/schemas/Money' }
+      vat: { $ref: '../components/common.yaml#/schemas/Money' }
+      description: { type: string }

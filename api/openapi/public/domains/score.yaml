@@ -1,0 +1,277 @@
+# Legacy Score. Module: score (lifa-core). FR-SCR-*.
+
+paths:
+  assessment:
+    get:
+      operationId: getAssessment
+      tags: [Score]
+      summary: Readiness assessment definition (20 questions at most) and the owner's saved answers
+      x-lifa-fr: [FR-SCR-001]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Assessment
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Assessment' }
+  assessmentAnswers:
+    put:
+      operationId: saveAssessmentAnswers
+      tags: [Score]
+      summary: Save answers, partially or in full ("Skip for now" is allowed). Completing triggers a score.
+      x-lifa-fr: [FR-SCR-001, FR-SCR-006]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [definitionVersion, answers]
+              properties:
+                definitionVersion: { type: string }
+                answers:
+                  type: array
+                  maxItems: 20
+                  items: { $ref: '#/schemas/Answer' }
+                complete: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Assessment' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+  score:
+    get:
+      operationId: getScore
+      tags: [Score]
+      summary: Current Legacy Score with domain statuses and reasons
+      x-lifa-fr: [FR-SCR-002, FR-SCR-003, FR-SCR-006, FR-WIL-012]
+      responses:
+        '200':
+          description: Score
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Score' }
+        '404':
+          description: The assessment is not completed yet
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+  scoreActions:
+    get:
+      operationId: getScoreActions
+      tags: [Score]
+      summary: Prioritised actions, ordered by score impact divided by estimated effort
+      x-lifa-fr: [FR-SCR-004]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Actions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/ScoreAction' } }
+  intestatePreview:
+    get:
+      operationId: getIntestatePreview
+      tags: [Score]
+      summary: Who would likely inherit under the Intestate Succession Act. Always labelled as an estimate. Never gated (FR-SUB-007).
+      x-lifa-fr: [FR-SCR-005, FR-SUB-007]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Preview
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/IntestatePreview' }
+  scoreHistory:
+    get:
+      operationId: getScoreHistory
+      tags: [Score]
+      summary: Score history for the trend line (Plus)
+      x-lifa-fr: [FR-SCR-007]
+      x-lifa-entitlement: scr.history
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: History
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [computedAt, total]
+                      properties:
+                        computedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+                        total: { type: integer, minimum: 0, maximum: 100 }
+                  changeSinceLabel: { type: [string, 'null'], examples: ['+28 since September'] }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+  lifeEvents:
+    post:
+      operationId: declareLifeEvent
+      tags: [Score]
+      summary: Declare a life event. Prompts a rescore and may mark the will stale (FR-WIL-017).
+      x-lifa-fr: [FR-SCR-008, FR-WIL-017]
+      x-lifa-entitlement: scr.life_events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, occurredOn]
+              properties:
+                type:
+                  type: string
+                  enum: [marriage, divorce, birth_or_adoption, beneficiary_death, property_purchase, property_sale, new_business, retirement, emigration]
+                occurredOn: { $ref: '../components/common.yaml#/schemas/Date' }
+                personId: { type: [string, 'null'], format: uuid }
+      responses:
+        '201':
+          description: Recorded, with follow-up actions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions]
+                properties:
+                  actions: { type: array, items: { $ref: '#/schemas/ScoreAction' } }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+  householdScore:
+    get:
+      operationId: getHouseholdScore
+      tags: [Score]
+      summary: Household score across two linked spouses, with inconsistency flags (Family)
+      x-lifa-fr: [FR-SCR-009]
+      x-lifa-entitlement: scr.household
+      responses:
+        '200':
+          description: Household score
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, members, inconsistencies]
+                properties:
+                  total: { type: integer, minimum: 0, maximum: 100 }
+                  members:
+                    type: array
+                    items:
+                      type: object
+                      required: [givenName, total]
+                      properties:
+                        givenName: { type: string }
+                        total: { type: integer }
+                  inconsistencies:
+                    type: array
+                    items:
+                      type: object
+                      required: [code, message]
+                      properties:
+                        code: { type: string, enum: [mirror_wills_disagree, guardian_mismatch, executor_mismatch, regime_mismatch] }
+                        message: { type: string }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+schemas:
+  Domain:
+    type: string
+    enum: [will, assets, protection, family, documents]
+  Question:
+    type: object
+    required: [id, domain, prompt, kind]
+    properties:
+      id: { type: string }
+      domain: { $ref: '#/schemas/Domain' }
+      section: { type: string, examples: [FAMILY] }
+      prompt: { type: string }
+      helpText: { type: string }
+      kind: { type: string, enum: [single_choice, multi_choice, yes_no, number, date] }
+      options:
+        type: array
+        items:
+          type: object
+          required: [value, label]
+          properties:
+            value: { type: string }
+            label: { type: string }
+      skippable: { type: boolean }
+      writesTo: { type: [string, 'null'], description: 'Estate field this answer pre-fills, for example estate.maritalRegime' }
+  Answer:
+    type: object
+    required: [questionId]
+    properties:
+      questionId: { type: string }
+      value: { description: Typed by the question kind. Null means skipped. }
+  Assessment:
+    type: object
+    required: [definitionVersion, questions, answers, completed, estimatedMinutesLeft]
+    properties:
+      definitionVersion: { type: string }
+      questions: { type: array, maxItems: 20, items: { $ref: '#/schemas/Question' } }
+      answers: { type: array, items: { $ref: '#/schemas/Answer' } }
+      completed: { type: boolean }
+      estimatedMinutesLeft: { type: integer }
+  DomainScore:
+    type: object
+    required: [domain, points, maxPoints, status, reason]
+    properties:
+      domain: { $ref: '#/schemas/Domain' }
+      points: { type: integer, minimum: 0 }
+      maxPoints: { type: integer, description: From the weights configuration (D-018) }
+      status: { type: string, enum: [complete, warning, missing] }
+      reason: { type: string }
+  Score:
+    type: object
+    required: [total, domains, computedAt, weightsVersion, headline]
+    properties:
+      total: { type: integer, minimum: 0, maximum: 100 }
+      domains: { type: array, items: { $ref: '#/schemas/DomainScore' } }
+      headline: { type: string, examples: ['A good start, Thandi'] }
+      projection: { type: [string, 'null'], examples: ['Three steps could take you past 75.'] }
+      computedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      weightsVersion: { type: string }
+  ScoreAction:
+    type: object
+    required: [id, title, impactPoints, effort, target]
+    properties:
+      id: { type: string }
+      title: { type: string, examples: ['Draft your free will'] }
+      subtitle: { type: [string, 'null'] }
+      impactPoints: { type: integer }
+      effort: { type: integer, minimum: 1, maximum: 5 }
+      target:
+        description: Deep link the clients route to
+        type: string
+        examples: ['lifa://will', 'lifa://family/roles/guardian']
+      severity: { type: string, enum: [info, warning, critical], default: info }
+  IntestatePreview:
+    type: object
+    required: [basis, narrative, heirs, disclosure]
+    properties:
+      basis: { type: string, const: estimated }
+      narrative: { type: string }
+      heirs:
+        type: array
+        items:
+          type: object
+          required: [personId, displayName, shareDescription]
+          properties:
+            personId: { type: string, format: uuid }
+            displayName: { type: string }
+            shareDescription: { type: string }
+      guardianNote: { type: [string, 'null'] }
+      assumptions: { type: array, items: { type: string } }
+      ruleVersion: { type: string }
+      disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }

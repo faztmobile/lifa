@@ -1,0 +1,42 @@
+# Redocly lint config for the Lifa API specs (docs/architecture/04-api-contracts.md).
+apis:
+  public@v1:
+    root: ./openapi/public/openapi.yaml
+    output: ./generated/public.bundled.yaml
+  backoffice@v1:
+    root: ./openapi/backoffice/openapi.yaml
+    output: ./generated/backoffice.bundled.yaml
+  webhooks@v1:
+    root: ./openapi/webhooks/openapi.yaml
+    output: ./generated/webhooks.bundled.yaml
+extends:
+  - recommended
+rules:
+  operation-operationId: error
+  operation-summary: error
+  operation-4xx-response: warn
+  no-unused-components: warn
+  security-defined: error
+  rule/operation-has-fr-ids:
+    subject:
+      type: Operation
+      property: x-lifa-fr
+    assertions:
+      defined: true
+      nonEmpty: true
+    message: Every operation must list the FR/NFR IDs it serves in x-lifa-fr.
+    severity: error
+  rule/step-up-header-present:
+    where:
+      - subject:
+          type: Operation
+          property: x-lifa-step-up
+        assertions:
+          defined: true
+    subject:
+      type: Operation
+      property: parameters
+    assertions:
+      defined: true
+    message: Operations with x-lifa-step-up must declare the Lifa-Step-Up header parameter.
+    severity: error

@@ -1,0 +1,418 @@
+# Emergency card and package (module: emergency, lifa-core) and dead man's switch (module: lifecycle, lifa-lifecycle, pool B).
+# FR-EMG-*, FR-DMS-*. The switch never declares a death; it only starts a verification (FRS 5.4).
+
+paths:
+  emergencyCard:
+    get:
+      operationId: getEmergencyCard
+      tags: [Emergency]
+      summary: The emergency card and its field selection. Never gated (FR-SUB-007).
+      x-lifa-fr: [FR-EMG-001, FR-EMG-002, FR-SUB-007]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Card
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EmergencyCard' }
+    put:
+      operationId: setEmergencyCard
+      tags: [Emergency]
+      summary: Choose the fields shown on the card
+      x-lifa-fr: [FR-EMG-002]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/EmergencyCardConfig' }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EmergencyCard' }
+
+  emergencyCardPrintable:
+    post:
+      operationId: generatePrintableEmergencyCard
+      tags: [Emergency]
+      summary: Generate a printable card PDF (wallet size and A4)
+      x-lifa-fr: [FR-EMG-001]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+
+  widgetTokens:
+    post:
+      operationId: enableLockScreenWidget
+      tags: [Emergency]
+      summary: Opt in to the lock-screen widget. Issues a narrow, read-only, revocable widget token (D-017).
+      x-lifa-fr: [FR-EMG-001, FR-NTF-004]
+      x-lifa-step-up: widget.enable
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/StepUpToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, acknowledgedLockScreenVisibility]
+              properties:
+                deviceId: { type: string, format: uuid }
+                acknowledgedLockScreenVisibility: { type: boolean, const: true }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '201':
+          description: Token (store it in the platform keystore shared with the widget extension only)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [widgetTokenId, widgetToken]
+                properties:
+                  widgetTokenId: { type: string, format: uuid }
+                  widgetToken: { type: string }
+  widgetToken:
+    delete:
+      operationId: disableLockScreenWidget
+      tags: [Emergency]
+      summary: Revoke a widget token
+      x-lifa-fr: [FR-EMG-001]
+      parameters:
+        - name: widgetTokenId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  widgetCard:
+    get:
+      operationId: getWidgetCard
+      tags: [Emergency]
+      summary: Widget payload. Holds only the fields the owner selected for the lock screen. Callable with a widget token only.
+      x-lifa-fr: [FR-EMG-001, FR-EMG-002]
+      security:
+        - widgetToken: []
+      responses:
+        '200':
+          description: Minimal card
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EmergencyCardView' }
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+
+  emergencyPackage:
+    get:
+      operationId: getEmergencyPackage
+      tags: [Emergency]
+      summary: Emergency package (insurers, schools and carers, business contacts) (Plus)
+      x-lifa-fr: [FR-EMG-003]
+      x-lifa-entitlement: emg.package
+      responses:
+        '200':
+          description: Package
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EmergencyPackage' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    put:
+      operationId: setEmergencyPackage
+      tags: [Emergency]
+      summary: Update package contents. Recipients and release rules are set through PUT /v1/access/release-rules/emergency_package/{id}.
+      x-lifa-fr: [FR-EMG-003]
+      x-lifa-entitlement: emg.package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/EmergencyPackageInput' }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/EmergencyPackage' }
+
+  checkInSettings:
+    get:
+      operationId: getCheckInSettings
+      tags: [Check-in]
+      summary: Dead man's switch settings and current status
+      x-lifa-fr: [FR-DMS-001, FR-DMS-007]
+      x-lifa-entitlement: dms.enabled
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/CheckInSettings' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    put:
+      operationId: setCheckInSettings
+      tags: [Check-in]
+      summary: Arm or disarm the switch, set the interval (30, 60 or 90 days), grace period (7–30 days) and verifiers
+      x-lifa-fr: [FR-DMS-001, FR-DMS-003, FR-DMS-005]
+      x-lifa-entitlement: dms.enabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/CheckInSettingsInput' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/CheckInSettings' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  checkIns:
+    post:
+      operationId: checkIn
+      tags: [Check-in]
+      summary: '"I''m still here". Any authenticated session also counts (FR-DMS-002); this call makes it explicit.'
+      x-lifa-fr: [FR-DMS-002, FR-DMS-006]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Checked in
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/CheckInSettings' }
+
+  checkInPause:
+    post:
+      operationId: pauseCheckIn
+      tags: [Check-in]
+      summary: Pause the switch for up to 180 days (for example while travelling)
+      x-lifa-fr: [FR-DMS-007]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [until]
+              properties:
+                until: { $ref: '../components/common.yaml#/schemas/Date' }
+      responses:
+        '200':
+          description: Paused
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/CheckInSettings' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+    delete:
+      operationId: resumeCheckIn
+      tags: [Check-in]
+      summary: Resume the switch
+      x-lifa-fr: [FR-DMS-007]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Resumed
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/CheckInSettings' }
+
+  ownerVerificationCases:
+    get:
+      operationId: listMyVerificationCases
+      tags: [Check-in]
+      summary: Reports made about the owner. Any owner login cancels open cases, and this shows who reported and when (AT-ACT-01).
+      x-lifa-fr: [FR-DMS-006]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Cases
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/OwnerCaseView' } }
+
+  verifierRequests:
+    get:
+      operationId: listVerifierRequests
+      tags: [Verifier]
+      summary: Open requests asking the caller (a verifier) whether an owner is well. Discloses nothing else (FR-DMS-003).
+      x-lifa-fr: [FR-DMS-003]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [requestId, ownerGivenName, askedAt]
+                      properties:
+                        requestId: { type: string, format: uuid }
+                        ownerGivenName: { type: string }
+                        askedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+
+  verifierReports:
+    post:
+      operationId: submitVerifierReport
+      tags: [Verifier]
+      summary: Report that the owner is well, incapacitated or has died. Only the last two open a verification case.
+      description: >-
+        On Family, a death report needs two verifiers, or one verifier plus a death certificate (FR-DMS-005, AT-DMS-01).
+        Certificates are uploaded to the lifecycle evidence store (pool B), not to the owner's vault.
+        In Release A a case can be reviewed but never activates (D-023).
+      x-lifa-fr: [FR-DMS-004, FR-DMS-005]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [report]
+              properties:
+                report:
+                  type: object
+                  required: [status]
+                  properties:
+                    status: { type: string, enum: [owner_well, owner_incapacitated, owner_died] }
+                    note: { type: string, maxLength: 500 }
+                deathCertificate: { type: string, contentMediaType: application/octet-stream }
+            encoding:
+              report:
+                contentType: application/json
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '202':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [outcome]
+                properties:
+                  outcome: { type: string, enum: [recorded_well, case_opened, awaiting_second_confirmation, case_updated] }
+                  message: { type: string }
+
+schemas:
+  CardField:
+    type: string
+    enum: [contacts_and_executor, will_location, children_and_guardian, funeral_wishes, attorney]
+  EmergencyCardConfig:
+    type: object
+    required: [fields]
+    properties:
+      fields: { type: array, items: { $ref: '#/schemas/CardField' }, uniqueItems: true }
+      lockScreenFields:
+        description: Subset shown on the lock screen. Defaults to [contacts_and_executor] (D-017).
+        type: array
+        items: { $ref: '#/schemas/CardField' }
+        uniqueItems: true
+      callFirstPersonId: { type: [string, 'null'], format: uuid }
+      funeralWishes: { type: [string, 'null'], maxLength: 300 }
+  EmergencyCardView:
+    type: object
+    required: [ownerName, entries]
+    properties:
+      ownerName: { type: string }
+      entries:
+        type: array
+        items:
+          type: object
+          required: [field, label, value]
+          properties:
+            field: { $ref: '#/schemas/CardField' }
+            label: { type: string, examples: ['Call first'] }
+            value: { type: string }
+            phone: { type: [string, 'null'] }
+  EmergencyCard:
+    type: object
+    required: [config, view, lockScreenWarning]
+    properties:
+      config: { $ref: '#/schemas/EmergencyCardConfig' }
+      view: { $ref: '#/schemas/EmergencyCardView' }
+      lockScreenWarning: { type: string, description: Shown before will_location is added to lockScreenFields }
+      widgetEnabledDevices: { type: array, items: { type: string, format: uuid } }
+  EmergencyPackageInput:
+    type: object
+    properties:
+      insurers: { type: array, items: { $ref: '#/schemas/PackageContact' } }
+      schoolsAndCarers: { type: array, items: { $ref: '#/schemas/PackageContact' } }
+      businessContacts: { type: array, items: { $ref: '#/schemas/PackageContact' } }
+      instructions: { type: [string, 'null'], maxLength: 2000 }
+  PackageContact:
+    type: object
+    required: [name]
+    properties:
+      name: { type: string, maxLength: 120 }
+      phone: { type: [string, 'null'] }
+      email: { type: [string, 'null'], format: email }
+      reference: { type: [string, 'null'], maxLength: 60, description: Policy or account reference (masked when shown) }
+  EmergencyPackage:
+    allOf:
+      - $ref: '#/schemas/EmergencyPackageInput'
+      - type: object
+        required: [id]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+          releaseRule: { oneOf: [{ $ref: './access.yaml#/schemas/ReleaseRule' }, { type: 'null' }] }
+  CheckInSettingsInput:
+    type: object
+    required: [armed, intervalDays, graceDays, verifierPersonIds]
+    properties:
+      armed: { type: boolean }
+      intervalDays: { type: integer, enum: [30, 60, 90] }
+      graceDays: { type: integer, minimum: 7, maximum: 30 }
+      verifierPersonIds:
+        description: Limit by entitlement dms.max_verifiers. Family needs at least 2 for death confirmation (FR-DMS-005).
+        type: array
+        items: { type: string, format: uuid }
+      channels:
+        type: array
+        items: { type: string, enum: [push, email, sms] }
+        default: [push, email, sms]
+  CheckInSettings:
+    allOf:
+      - $ref: '#/schemas/CheckInSettingsInput'
+      - type: object
+        required: [state]
+        properties:
+          state: { type: string, enum: [disarmed, armed, due, overdue, grace, verifiers_notified, case_open, paused] }
+          nextDueOn: { $ref: '../components/common.yaml#/schemas/Date' }
+          lastCheckInAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+          pausedUntil: { type: [string, 'null'], format: date }
+          explainer: { type: array, items: { type: string } }
+  OwnerCaseView:
+    type: object
+    required: [id, status, openedAt, reporters]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      status: { type: string, enum: [open, awaiting_evidence, under_review, cancelled_by_owner, rejected] }
+      openedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      cancelledAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+      reporters:
+        type: array
+        items:
+          type: object
+          required: [displayName, reportedAt, reported]
+          properties:
+            displayName: { type: string }
+            reportedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+            reported: { type: string, enum: [owner_incapacitated, owner_died] }

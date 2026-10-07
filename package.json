@@ -1,0 +1,12 @@
+{
+  "name": "lifa-monorepo-tooling",
+  "private": true,
+  "description": "Repo-level tooling only (API lint/bundle). Each client and the backend have their own build.",
+  "scripts": {
+    "api:lint": "redocly lint --config api/redocly.yaml",
+    "api:bundle": "redocly bundle public@v1 backoffice@v1 webhooks@v1 --config api/redocly.yaml"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.59.0"
+  }
+}

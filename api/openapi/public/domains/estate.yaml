@@ -1,0 +1,778 @@
+# Estate model: estate profile, people, assets, liabilities, balance sheet, validation, household, wallet.
+# Modules: estate, wallet (lifa-core). FR-AST-*, FR-FAM-*, FR-WAL-*, FR-PRM-007.
+
+paths:
+  estate:
+    get:
+      operationId: getEstate
+      tags: [Estate]
+      summary: The owner's estate profile
+      x-lifa-fr: [FR-WIL-002]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Estate
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Estate' }
+    patch:
+      operationId: updateEstate
+      tags: [Estate]
+      summary: Update marital status and regime, and domicile
+      x-lifa-fr: [FR-WIL-002]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/EstatePatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Estate' }
+        '409':
+          description: Estate is not in the living state (estate_frozen)
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+
+  persons:
+    get:
+      operationId: listPersons
+      tags: [Family]
+      summary: People in the family tree
+      x-lifa-fr: [FR-FAM-001, FR-FAM-003]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: People
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Person' } }
+    post:
+      operationId: createPerson
+      tags: [Family]
+      summary: Add a person. Free tier is capped at 10 (FR-FAM-002).
+      x-lifa-fr: [FR-FAM-001, FR-FAM-002, FR-FAM-003, FR-FAM-004]
+      x-lifa-entitlement: fam.max_people
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/PersonInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/PersonWrite' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  person:
+    parameters:
+      - $ref: '#/parameters/PersonId'
+    get:
+      operationId: getPerson
+      tags: [Family]
+      summary: Get a person
+      x-lifa-fr: [FR-FAM-003]
+      responses:
+        '200':
+          description: Person
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Person' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    patch:
+      operationId: updatePerson
+      tags: [Family]
+      summary: Update a person (including the deceased flag)
+      x-lifa-fr: [FR-FAM-003, FR-FAM-005]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/PersonPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/PersonWrite' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+    delete:
+      operationId: deletePerson
+      tags: [Family]
+      summary: Remove a person. Blocked (409) while they hold allocations, bequests, nominations or grants.
+      x-lifa-fr: [FR-FAM-005]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  familyTree:
+    get:
+      operationId: getFamilyTree
+      tags: [Family]
+      summary: Tree layout data with role badges and residue shares
+      x-lifa-fr: [FR-FAM-001]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Tree
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/FamilyTree' }
+
+  assets:
+    get:
+      operationId: listAssets
+      tags: [Assets]
+      summary: Assets, filterable by category and evidence
+      x-lifa-fr: [FR-AST-001, FR-AST-004]
+      parameters:
+        - name: category
+          in: query
+          schema: { $ref: '#/schemas/AssetCategory' }
+        - name: evidence
+          in: query
+          schema: { $ref: '../components/common.yaml#/schemas/RecordEvidence' }
+        - $ref: '../components/common.yaml#/parameters/Cursor'
+        - $ref: '../components/common.yaml#/parameters/Limit'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Assets
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../components/common.yaml#/schemas/Page'
+                  - type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/schemas/Asset' } }
+    post:
+      operationId: createAsset
+      tags: [Assets]
+      summary: Add an asset. The Free cap is 15 asset and liability records combined; the 16th returns entitlement_limit (FR-AST-003).
+      x-lifa-fr: [FR-AST-001, FR-AST-003, FR-AST-004, FR-AST-006, FR-AST-007]
+      x-lifa-entitlement: ast.max_records
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/AssetInput' }
+      responses:
+        '201':
+          description: Created. The response may carry nominee_asset or possible_secret warnings.
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AssetWrite' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  asset:
+    parameters:
+      - $ref: '#/parameters/AssetId'
+    get:
+      operationId: getAsset
+      tags: [Assets]
+      summary: Get an asset, with linked documents and allocation
+      x-lifa-fr: [FR-AST-010]
+      responses:
+        '200':
+          description: Asset
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Asset' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    patch:
+      operationId: updateAsset
+      tags: [Assets]
+      summary: Update an asset. Returns 403 entitlement_limit if the record is read-only after a downgrade (FR-SUB-004).
+      x-lifa-fr: [FR-AST-004, FR-AST-009, FR-AST-010, FR-SUB-004]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/AssetPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/AssetWrite' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+    delete:
+      operationId: deleteAsset
+      tags: [Assets]
+      summary: Delete an asset. Shared household items need both owners' consent (FR-PRM-007); that case returns 202.
+      x-lifa-fr: [FR-PRM-007]
+      responses:
+        '202':
+          description: Awaiting the linked spouse's consent
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/SharedDeletionRequest' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  liabilities:
+    get:
+      operationId: listLiabilities
+      tags: [Assets]
+      summary: Liabilities
+      x-lifa-fr: [FR-AST-002]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Liabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Liability' } }
+    post:
+      operationId: createLiability
+      tags: [Assets]
+      summary: Add a liability. Counts toward the same Free cap as assets (FR-AST-003).
+      x-lifa-fr: [FR-AST-002, FR-AST-003, FR-AST-004]
+      x-lifa-entitlement: ast.max_records
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/LiabilityInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Liability' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  liability:
+    parameters:
+      - name: liabilityId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateLiability
+      tags: [Assets]
+      summary: Update a liability
+      x-lifa-fr: [FR-AST-002, FR-SUB-004]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/LiabilityPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Liability' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+    delete:
+      operationId: deleteLiability
+      tags: [Assets]
+      summary: Delete a liability
+      x-lifa-fr: [FR-AST-002]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  balanceSheet:
+    get:
+      operationId: getBalanceSheet
+      tags: [Assets]
+      summary: Gross assets, liabilities, estimated net estate, and category breakdown
+      x-lifa-fr: [FR-AST-008, FR-WAL-001, FR-AST-006]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Balance sheet
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/BalanceSheet' }
+
+  estateValidation:
+    get:
+      operationId: getEstateValidation
+      tags: [Family]
+      summary: Allocation validation (FR-FAM-005, all tiers) and conflict detection (FR-FAM-006, Plus)
+      x-lifa-fr: [FR-FAM-005, FR-FAM-006]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Findings
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/ValidationReport' }
+
+  household:
+    get:
+      operationId: getHousehold
+      tags: [Household]
+      summary: Linked-spouse household (Family tier)
+      x-lifa-fr: [FR-PRM-007, FR-SCR-009]
+      x-lifa-entitlement: household.link
+      responses:
+        '200':
+          description: Household
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Household' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+  householdInvitations:
+    post:
+      operationId: inviteSpouseToHousehold
+      tags: [Household]
+      summary: Invite a spouse or partner to link estates (Family tier)
+      x-lifa-fr: [FR-PRM-007]
+      x-lifa-entitlement: household.link
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [personId]
+              properties:
+                personId: { type: string, format: uuid, description: Spouse or partner in the family tree with contact details }
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  householdDeletionConsent:
+    post:
+      operationId: decideSharedDeletion
+      tags: [Household]
+      summary: Approve or reject the linked spouse's request to delete a shared item
+      x-lifa-fr: [FR-PRM-007]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approve]
+              properties:
+                approve: { type: boolean }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Decision recorded
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/SharedDeletionRequest' }
+
+  walletSnapshots:
+    get:
+      operationId: listNetWorthSnapshots
+      tags: [Wallet]
+      summary: Monthly net-worth snapshots for the trend chart (Plus)
+      x-lifa-fr: [FR-WAL-002]
+      x-lifa-entitlement: wal.monthly_tracking
+      parameters:
+        - name: scope
+          in: query
+          schema: { type: string, enum: [me, household], default: me }
+        - name: months
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 6 }
+      responses:
+        '200':
+          description: Snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [month, netWorth]
+                      properties:
+                        month: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' }
+                        netWorth: { $ref: '../components/common.yaml#/schemas/Money' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  walletBalanceUpdate:
+    get:
+      operationId: getBalanceUpdatePrompt
+      tags: [Wallet]
+      summary: The owner's top five accounts by value, for the monthly two-minute update (Plus)
+      x-lifa-fr: [FR-WAL-003]
+      x-lifa-entitlement: wal.monthly_tracking
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Accounts to update
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, maxItems: 5, items: { $ref: '#/schemas/Asset' } }
+    post:
+      operationId: submitBalanceUpdate
+      tags: [Wallet]
+      summary: Submit updated balances (declared, dated today)
+      x-lifa-fr: [FR-WAL-003, FR-AST-004]
+      x-lifa-entitlement: wal.monthly_tracking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    required: [assetId, value]
+                    properties:
+                      assetId: { type: string, format: uuid }
+                      value: { $ref: '../components/common.yaml#/schemas/Money' }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+parameters:
+  PersonId:
+    name: personId
+    in: path
+    required: true
+    schema: { type: string, format: uuid }
+  AssetId:
+    name: assetId
+    in: path
+    required: true
+    schema: { type: string, format: uuid }
+
+schemas:
+  EstateState:
+    description: FRS §10 Estate.state. Release A uses living and verifying only (D-023).
+    type: string
+    enum: [living, verifying, activated, administering, closed]
+  MaritalStatus:
+    type: string
+    enum: [single, married, civil_union, life_partner, divorced, widowed]
+  MaritalRegime:
+    description: FRS 1.5 marital regimes (FR-WIL-002)
+    type: string
+    enum: [not_married, in_community, out_of_community_with_accrual, out_of_community_without_accrual, customary, unknown]
+  Estate:
+    type: object
+    required: [id, state, maritalStatus, maritalRegime]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      state: { $ref: '#/schemas/EstateState' }
+      maritalStatus: { $ref: '#/schemas/MaritalStatus' }
+      maritalRegime: { $ref: '#/schemas/MaritalRegime' }
+      spousePersonId: { type: [string, 'null'], format: uuid }
+      regimeExplanation:
+        description: Plain-language explanation from content (FR-WIL-002, NFR-USE-002)
+        type: string
+        readOnly: true
+      domicileCountry: { type: string, default: ZAF }
+      householdLinked: { type: boolean, readOnly: true }
+  EstatePatch:
+    type: object
+    properties:
+      maritalStatus: { $ref: '#/schemas/MaritalStatus' }
+      maritalRegime: { $ref: '#/schemas/MaritalRegime' }
+      spousePersonId: { type: [string, 'null'], format: uuid }
+  Relationship:
+    description: FR-FAM-001
+    type: string
+    enum: [self, spouse, partner, child, adopted_child, stepchild, parent, sibling, grandchild, other_dependant, unrelated, organisation_charity, organisation_trust]
+  PersonInput:
+    type: object
+    required: [displayName, relationship]
+    properties:
+      displayName: { type: string, minLength: 1, maxLength: 120 }
+      givenName: { type: string, maxLength: 100 }
+      familyName: { type: string, maxLength: 100 }
+      relationship: { $ref: '#/schemas/Relationship' }
+      dateOfBirth: { $ref: '../components/common.yaml#/schemas/Date' }
+      idNumber: { type: string, writeOnly: true, maxLength: 20, description: Optional. Field-level encrypted. }
+      email: { type: string, format: email }
+      mobile: { type: string, pattern: '^\+[1-9][0-9]{7,14}$' }
+      specialNeeds: { type: boolean, default: false }
+      deceased: { type: boolean, default: false }
+      registrationNumber: { type: string, description: Organisations only (NPO or trust number) }
+  PersonPatch:
+    type: object
+    properties:
+      displayName: { type: string, minLength: 1, maxLength: 120 }
+      relationship: { $ref: '#/schemas/Relationship' }
+      dateOfBirth: { $ref: '../components/common.yaml#/schemas/Date' }
+      idNumber: { type: [string, 'null'], writeOnly: true }
+      email: { type: [string, 'null'], format: email }
+      mobile: { type: [string, 'null'] }
+      specialNeeds: { type: boolean }
+      deceased: { type: boolean }
+  Person:
+    type: object
+    required: [id, displayName, relationship, minor, specialNeeds, deceased, readOnly]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      displayName: { type: string }
+      initials: { type: string }
+      relationship: { $ref: '#/schemas/Relationship' }
+      dateOfBirth: { $ref: '../components/common.yaml#/schemas/Date' }
+      ageYears: { type: [integer, 'null'] }
+      minor: { type: boolean, readOnly: true, description: Derived from date of birth and recomputed nightly (FR-FAM-004) }
+      specialNeeds: { type: boolean }
+      deceased: { type: boolean }
+      maskedIdNumber: { type: [string, 'null'] }
+      hasContact: { type: boolean }
+      roles:
+        description: Will nominations and access grants for display
+        type: array
+        items: { type: string }
+      readOnly: { type: boolean, description: Over the limit after a downgrade (FR-SUB-004) }
+  PersonWrite:
+    allOf:
+      - $ref: '#/schemas/Person'
+      - type: object
+        properties:
+          warnings: { type: array, items: { $ref: '../components/common.yaml#/schemas/Warning' } }
+  FamilyTree:
+    type: object
+    required: [rootPersonId, nodes, edges]
+    properties:
+      rootPersonId: { type: string, format: uuid }
+      nodes:
+        type: array
+        items:
+          type: object
+          required: [personId, label]
+          properties:
+            personId: { type: string, format: uuid }
+            label: { type: string }
+            badges: { type: array, items: { type: string } }
+            residuePercent: { type: [number, 'null'] }
+      edges:
+        type: array
+        items:
+          type: object
+          required: [from, to, relationship]
+          properties:
+            from: { type: string, format: uuid }
+            to: { type: string, format: uuid }
+            relationship: { $ref: '#/schemas/Relationship' }
+  AssetCategory:
+    description: FR-AST-001
+    type: string
+    enum: [property, vehicle, bank_account, investment, retirement_fund, insurance_policy, business_interest, trust_interest, digital_asset, valuable, other]
+  Ownership:
+    description: FR-AST-006 (Family tier for the estate-side mapping)
+    type: string
+    enum: [sole, joint, company]
+  EstateSide:
+    type: string
+    enum: [separate, joint]
+  AssetInput:
+    type: object
+    required: [category, description, value]
+    properties:
+      category: { $ref: '#/schemas/AssetCategory' }
+      description: { type: string, maxLength: 200, description: Checked for secrets (FR-VLT-011) }
+      institution: { type: string, maxLength: 120 }
+      accountLast4: { type: string, pattern: '^[0-9A-Za-z]{2,6}$' }
+      value: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      ownership: { $ref: '#/schemas/Ownership' }
+      estateSide: { $ref: '#/schemas/EstateSide' }
+      ownershipSharePercent: { type: number, minimum: 0, maximum: 100 }
+      paysByNomination:
+        description: Retirement funds and life policies pay out by beneficiary nomination, not by the will (FR-AST-007)
+        type: boolean
+      nomineePersonId: { type: [string, 'null'], format: uuid }
+      documentIds: { type: array, items: { type: string, format: uuid } }
+      sourceExtractionId: { type: [string, 'null'], format: uuid }
+  AssetPatch:
+    type: object
+    properties:
+      description: { type: string, maxLength: 200 }
+      institution: { type: string, maxLength: 120 }
+      value: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      ownership: { $ref: '#/schemas/Ownership' }
+      estateSide: { $ref: '#/schemas/EstateSide' }
+      ownershipSharePercent: { type: number, minimum: 0, maximum: 100 }
+      nomineePersonId: { type: [string, 'null'], format: uuid }
+      documentIds: { type: array, items: { type: string, format: uuid } }
+  Asset:
+    type: object
+    required: [id, category, description, value, evidence, readOnly]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      category: { $ref: '#/schemas/AssetCategory' }
+      description: { type: string }
+      institution: { type: [string, 'null'] }
+      accountLast4: { type: [string, 'null'] }
+      value: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      evidence: { $ref: '../components/common.yaml#/schemas/RecordEvidence' }
+      valueStale: { type: boolean, description: Value is older than 12 months (FR-AST-009) }
+      ownership: { $ref: '#/schemas/Ownership' }
+      estateSide: { $ref: '#/schemas/EstateSide' }
+      paysByNomination: { type: boolean }
+      nomineePersonId: { type: [string, 'null'], format: uuid }
+      documentIds: { type: array, items: { type: string, format: uuid } }
+      allocation:
+        description: Where it goes under the current will (FR-AST-010)
+        type: object
+        properties:
+          kind: { type: string, enum: [bequest, residue, nomination, unallocated] }
+          personIds: { type: array, items: { type: string, format: uuid } }
+      readOnly: { type: boolean }
+  AssetWrite:
+    allOf:
+      - $ref: '#/schemas/Asset'
+      - type: object
+        properties:
+          warnings: { type: array, items: { $ref: '../components/common.yaml#/schemas/Warning' } }
+  LiabilityType:
+    description: FR-AST-002
+    type: string
+    enum: [home_loan, vehicle_finance, personal_loan, credit_card, overdraft, surety, other]
+  LiabilityInput:
+    type: object
+    required: [type, balance]
+    properties:
+      type: { $ref: '#/schemas/LiabilityType' }
+      creditor: { type: string, maxLength: 120 }
+      balance: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      securedAgainstAssetId: { type: [string, 'null'], format: uuid }
+      documentIds: { type: array, items: { type: string, format: uuid } }
+  LiabilityPatch:
+    type: object
+    properties:
+      creditor: { type: string, maxLength: 120 }
+      balance: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      securedAgainstAssetId: { type: [string, 'null'], format: uuid }
+  Liability:
+    allOf:
+      - $ref: '#/schemas/LiabilityInput'
+      - type: object
+        required: [id, evidence, readOnly]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+          evidence: { $ref: '../components/common.yaml#/schemas/RecordEvidence' }
+          readOnly: { type: boolean }
+  BalanceSheet:
+    type: object
+    required: [grossAssets, liabilities, netEstate, categories, counts]
+    properties:
+      grossAssets: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      liabilities: { $ref: '../components/common.yaml#/schemas/LabelledMoney' }
+      netEstate:
+        description: Always basis = estimated
+        $ref: '../components/common.yaml#/schemas/LabelledMoney'
+      ownHalfOfJointEstate:
+        description: Present for in-community regimes (FR-AST-006)
+        oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }]
+      categories:
+        type: array
+        items:
+          type: object
+          required: [category, count, total]
+          properties:
+            category: { type: string }
+            count: { type: integer }
+            total: { $ref: '../components/common.yaml#/schemas/Money' }
+            note: { type: string, examples: ['Paid by nomination, not your will'] }
+      counts:
+        type: object
+        required: [all, evidenced, declared]
+        properties:
+          all: { type: integer }
+          evidenced: { type: integer }
+          declared: { type: integer }
+  ValidationFinding:
+    type: object
+    required: [code, severity, message]
+    properties:
+      code:
+        type: string
+        enum: [residue_not_100, duplicate_full_bequest, allocation_to_deceased, missing_alternate, minor_direct_heir, witness_is_beneficiary, unequal_children_no_reason, dependant_no_provision, guardian_missing]
+      severity: { type: string, enum: [blocking, warning] }
+      message: { type: string }
+      personIds: { type: array, items: { type: string, format: uuid } }
+      assetIds: { type: array, items: { type: string, format: uuid } }
+  ValidationReport:
+    type: object
+    required: [findings, conflictDetectionAvailable]
+    properties:
+      findings: { type: array, items: { $ref: '#/schemas/ValidationFinding' } }
+      conflictDetectionAvailable: { type: boolean, description: FR-FAM-006 (Plus) }
+  Household:
+    type: object
+    required: [id, members]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      members:
+        type: array
+        items:
+          type: object
+          required: [userId, givenName, status]
+          properties:
+            userId: { type: string, format: uuid }
+            givenName: { type: string }
+            status: { type: string, enum: [invited, linked] }
+      pendingDeletionRequests: { type: array, items: { $ref: '#/schemas/SharedDeletionRequest' } }
+  SharedDeletionRequest:
+    type: object
+    required: [id, itemType, itemId, status]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      itemType: { type: string, enum: [asset, liability, document, folder] }
+      itemId: { type: string, format: uuid }
+      status: { type: string, enum: [pending, approved, rejected] }

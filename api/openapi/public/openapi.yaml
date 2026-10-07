@@ -1,0 +1,276 @@
+openapi: 3.1.0
+info:
+  title: Lifa Public API
+  version: 0.1.0
+  summary: Client-facing API for the Lifa iOS, Android (GMS/HMS), HarmonyOS NEXT and web clients.
+  description: |
+    Release A (FRS R1 + R2). Contract first (D-003): clients are generated from this spec.
+
+    Conventions (docs/architecture/04-api-contracts.md):
+    - Every operation lists the requirements it serves in `x-lifa-fr`.
+    - `x-lifa-step-up: <scope>` means a `Lifa-Step-Up` header is required (FR-ONB-006).
+    - `x-lifa-entitlement: <key>` means the server enforces that entitlement key (FR-SUB-001). Clients never branch on plan names.
+    - Errors are RFC 9457 `application/problem+json` with a stable `code`.
+    - Money is ZAR cents. Every figure carries a declared, evidenced or estimated basis (FRS principle 4).
+    - Responses for sensitive resources are sent with `Cache-Control: no-store`.
+
+    Lifa is not a law firm, executor or financial services provider and does not give legal, tax or financial advice.
+  contact:
+    name: WZDRY (Pty) Ltd
+  license:
+    name: Proprietary
+    identifier: LicenseRef-WZDRY-Proprietary
+servers:
+  - url: https://api.lifa.co.za
+    description: Production (South Africa North)
+  - url: https://api.staging.lifa.co.za
+    description: Staging
+security:
+  - oidc: []
+    dpop: []
+  - bffSession: []
+tags:
+  - { name: Identity, description: 'Profile, verification, devices, step-up (FR-ONB)' }
+  - { name: Account, description: 'Export and closure (FR-ONB-011)' }
+  - { name: Invitations, description: 'Trusted-person invitations (FR-FAM-008, FR-ONB-009)' }
+  - { name: Commerce, description: 'Entitlements, plans, purchases (FR-SUB)' }
+  - { name: Score, description: 'Legacy Score (FR-SCR)' }
+  - { name: Estate, description: 'Estate profile (FR-WIL-002)' }
+  - { name: Family, description: 'People and validation (FR-FAM)' }
+  - { name: Assets, description: 'Assets and liabilities (FR-AST)' }
+  - { name: Household, description: 'Linked spouses, Family tier (FR-PRM-007)' }
+  - { name: Wallet, description: 'Net worth (FR-WAL)' }
+  - { name: Will, description: 'Will Builder (FR-WIL)' }
+  - { name: Jobs, description: 'Asynchronous jobs' }
+  - { name: Vault, description: 'Document vault (FR-VLT)' }
+  - { name: Extraction, description: 'Statement extraction (FR-AST-005)' }
+  - { name: Access, description: 'Grants and release rules (FR-PRM)' }
+  - { name: Shared, description: 'Trusted-person view (FR-PRM-001)' }
+  - { name: Emergency, description: 'Emergency card and package (FR-EMG)' }
+  - { name: Check-in, description: "Dead man's switch (FR-DMS)" }
+  - { name: Verifier, description: 'Verifier reports (FR-DMS-003..005)' }
+  - { name: Simulation, description: 'Scenario simulator (FR-SIM)' }
+  - { name: Liquidity, description: 'Liquidity engine (FR-LIQ)' }
+  - { name: Notifications, description: 'Preferences, push, inbox (FR-NTF)' }
+  - { name: Config, description: 'Client config and content' }
+paths:
+  # identity
+  /v1/me:
+    $ref: './domains/identity.yaml#/paths/me'
+  /v1/me/mobile-verification:
+    $ref: './domains/identity.yaml#/paths/mobileVerification'
+  /v1/me/mobile-verification/confirm:
+    $ref: './domains/identity.yaml#/paths/mobileVerificationConfirm'
+  /v1/me/identity-document:
+    $ref: './domains/identity.yaml#/paths/identityDocument'
+  /v1/me/identity-verifications:
+    $ref: './domains/identity.yaml#/paths/identityVerifications'
+  /v1/me/consents:
+    $ref: './domains/identity.yaml#/paths/consents'
+  /v1/devices:
+    $ref: './domains/identity.yaml#/paths/devices'
+  /v1/devices/{deviceId}:
+    $ref: './domains/identity.yaml#/paths/device'
+  /v1/step-up/challenges:
+    $ref: './domains/identity.yaml#/paths/stepUpChallenges'
+  /v1/step-up/verifications:
+    $ref: './domains/identity.yaml#/paths/stepUpVerifications'
+  /v1/me/webauthn-credentials:
+    $ref: './domains/identity.yaml#/paths/webauthnCredentials'
+  /v1/account/exports:
+    $ref: './domains/identity.yaml#/paths/accountExports'
+  /v1/account/closure:
+    $ref: './domains/identity.yaml#/paths/accountClosure'
+  /v1/invitations/{invitationToken}:
+    $ref: './domains/identity.yaml#/paths/invitation'
+  /v1/invitations/{invitationToken}/accept:
+    $ref: './domains/identity.yaml#/paths/invitationAccept'
+  /v1/invitations/{invitationToken}/decline:
+    $ref: './domains/identity.yaml#/paths/invitationDecline'
+  /v1/me/upgrade-to-owner:
+    $ref: './domains/identity.yaml#/paths/upgradeToOwner'
+  # commerce
+  /v1/entitlements:
+    $ref: './domains/commerce.yaml#/paths/entitlements'
+  /v1/catalogue:
+    $ref: './domains/commerce.yaml#/paths/catalogue'
+  /v1/trials:
+    $ref: './domains/commerce.yaml#/paths/trials'
+  /v1/purchases/verifications:
+    $ref: './domains/commerce.yaml#/paths/purchaseVerifications'
+  /v1/checkout-sessions:
+    $ref: './domains/commerce.yaml#/paths/checkoutSessions'
+  /v1/subscription:
+    $ref: './domains/commerce.yaml#/paths/subscription'
+  /v1/subscription/cancel:
+    $ref: './domains/commerce.yaml#/paths/subscriptionCancel'
+  /v1/invoices:
+    $ref: './domains/commerce.yaml#/paths/invoices'
+  /v1/invoices/{invoiceId}/pdf:
+    $ref: './domains/commerce.yaml#/paths/invoicePdf'
+  # score
+  /v1/assessment:
+    $ref: './domains/score.yaml#/paths/assessment'
+  /v1/assessment/answers:
+    $ref: './domains/score.yaml#/paths/assessmentAnswers'
+  /v1/score:
+    $ref: './domains/score.yaml#/paths/score'
+  /v1/score/actions:
+    $ref: './domains/score.yaml#/paths/scoreActions'
+  /v1/score/intestate-preview:
+    $ref: './domains/score.yaml#/paths/intestatePreview'
+  /v1/score/history:
+    $ref: './domains/score.yaml#/paths/scoreHistory'
+  /v1/life-events:
+    $ref: './domains/score.yaml#/paths/lifeEvents'
+  /v1/household/score:
+    $ref: './domains/score.yaml#/paths/householdScore'
+  # estate
+  /v1/estate:
+    $ref: './domains/estate.yaml#/paths/estate'
+  /v1/estate/persons:
+    $ref: './domains/estate.yaml#/paths/persons'
+  /v1/estate/persons/{personId}:
+    $ref: './domains/estate.yaml#/paths/person'
+  /v1/estate/family-tree:
+    $ref: './domains/estate.yaml#/paths/familyTree'
+  /v1/estate/assets:
+    $ref: './domains/estate.yaml#/paths/assets'
+  /v1/estate/assets/{assetId}:
+    $ref: './domains/estate.yaml#/paths/asset'
+  /v1/estate/liabilities:
+    $ref: './domains/estate.yaml#/paths/liabilities'
+  /v1/estate/liabilities/{liabilityId}:
+    $ref: './domains/estate.yaml#/paths/liability'
+  /v1/estate/balance-sheet:
+    $ref: './domains/estate.yaml#/paths/balanceSheet'
+  /v1/estate/validation:
+    $ref: './domains/estate.yaml#/paths/estateValidation'
+  /v1/household:
+    $ref: './domains/estate.yaml#/paths/household'
+  /v1/household/invitations:
+    $ref: './domains/estate.yaml#/paths/householdInvitations'
+  /v1/household/deletion-requests/{requestId}/decision:
+    $ref: './domains/estate.yaml#/paths/householdDeletionConsent'
+  /v1/wallet/snapshots:
+    $ref: './domains/estate.yaml#/paths/walletSnapshots'
+  /v1/wallet/balance-update:
+    $ref: './domains/estate.yaml#/paths/walletBalanceUpdate'
+  # will
+  /v1/wills:
+    $ref: './domains/will.yaml#/paths/wills'
+  /v1/wills/{willId}:
+    $ref: './domains/will.yaml#/paths/will'
+  /v1/wills/{willId}/residue:
+    $ref: './domains/will.yaml#/paths/willResidue'
+  /v1/wills/{willId}/bequests:
+    $ref: './domains/will.yaml#/paths/willBequests'
+  /v1/wills/{willId}/guardianship:
+    $ref: './domains/will.yaml#/paths/willGuardianship'
+  /v1/wills/{willId}/executors:
+    $ref: './domains/will.yaml#/paths/willExecutors'
+  /v1/wills/{willId}/review:
+    $ref: './domains/will.yaml#/paths/willReview'
+  /v1/wills/{willId}/signing-pack:
+    $ref: './domains/will.yaml#/paths/willSigningPack'
+  /v1/wills/{willId}/execution:
+    $ref: './domains/will.yaml#/paths/willExecution'
+  /v1/wills/{willId}/current-signed:
+    $ref: './domains/will.yaml#/paths/willCurrentSigned'
+  /v1/jobs/{jobId}:
+    $ref: './domains/will.yaml#/paths/documentJob'
+  # vault
+  /v1/vault:
+    $ref: './domains/vault.yaml#/paths/vault'
+  /v1/vault/folders:
+    $ref: './domains/vault.yaml#/paths/folders'
+  /v1/vault/documents:
+    $ref: './domains/vault.yaml#/paths/documents'
+  /v1/vault/documents/{documentId}:
+    $ref: './domains/vault.yaml#/paths/document'
+  /v1/vault/documents/{documentId}/confirm:
+    $ref: './domains/vault.yaml#/paths/documentConfirm'
+  /v1/vault/documents/{documentId}/content:
+    $ref: './domains/vault.yaml#/paths/documentContent'
+  /v1/vault/activity:
+    $ref: './domains/vault.yaml#/paths/vaultActivity'
+  /v1/vault/estate-pack:
+    $ref: './domains/vault.yaml#/paths/estatePack'
+  /v1/extractions:
+    $ref: './domains/vault.yaml#/paths/extractions'
+  /v1/extractions/{extractionId}:
+    $ref: './domains/vault.yaml#/paths/extraction'
+  /v1/extractions/{extractionId}/confirm:
+    $ref: './domains/vault.yaml#/paths/extractionConfirm'
+  # access
+  /v1/access/grants:
+    $ref: './domains/access.yaml#/paths/grants'
+  /v1/access/grants/{grantId}:
+    $ref: './domains/access.yaml#/paths/grant'
+  /v1/access/grants/{grantId}/resend:
+    $ref: './domains/access.yaml#/paths/grantResendInvitation'
+  /v1/access/release-rules/{targetType}/{targetId}:
+    $ref: './domains/access.yaml#/paths/releaseRule'
+  /v1/access/summary:
+    $ref: './domains/access.yaml#/paths/accessSummary'
+  /v1/shared/estates:
+    $ref: './domains/access.yaml#/paths/sharedEstates'
+  /v1/shared/estates/{estateId}/items:
+    $ref: './domains/access.yaml#/paths/sharedItems'
+  /v1/shared/estates/{estateId}/documents/{documentId}/content:
+    $ref: './domains/access.yaml#/paths/sharedDocumentContent'
+  # protection
+  /v1/emergency-card:
+    $ref: './domains/protection.yaml#/paths/emergencyCard'
+  /v1/emergency-card/printable:
+    $ref: './domains/protection.yaml#/paths/emergencyCardPrintable'
+  /v1/emergency-card/widget-tokens:
+    $ref: './domains/protection.yaml#/paths/widgetTokens'
+  /v1/emergency-card/widget-tokens/{widgetTokenId}:
+    $ref: './domains/protection.yaml#/paths/widgetToken'
+  /v1/emergency-card/widget:
+    $ref: './domains/protection.yaml#/paths/widgetCard'
+  /v1/emergency-package:
+    $ref: './domains/protection.yaml#/paths/emergencyPackage'
+  /v1/check-in/settings:
+    $ref: './domains/protection.yaml#/paths/checkInSettings'
+  /v1/check-ins:
+    $ref: './domains/protection.yaml#/paths/checkIns'
+  /v1/check-in/pause:
+    $ref: './domains/protection.yaml#/paths/checkInPause'
+  /v1/me/verification-cases:
+    $ref: './domains/protection.yaml#/paths/ownerVerificationCases'
+  /v1/verifier/requests:
+    $ref: './domains/protection.yaml#/paths/verifierRequests'
+  /v1/verifier/requests/{requestId}/reports:
+    $ref: './domains/protection.yaml#/paths/verifierReports'
+  # simulation
+  /v1/simulation/if-i-died-today:
+    $ref: './domains/simulation.yaml#/paths/ifIDiedToday'
+  /v1/scenarios:
+    $ref: './domains/simulation.yaml#/paths/scenarios'
+  /v1/scenarios/{scenarioId}:
+    $ref: './domains/simulation.yaml#/paths/scenario'
+  /v1/scenarios/comparison:
+    $ref: './domains/simulation.yaml#/paths/scenarioComparison'
+  /v1/liquidity:
+    $ref: './domains/simulation.yaml#/paths/liquidity'
+  # platform
+  /v1/notification-preferences:
+    $ref: './domains/platform.yaml#/paths/notificationPreferences'
+  /v1/devices/{deviceId}/push:
+    $ref: './domains/platform.yaml#/paths/pushRegistration'
+  /v1/inbox:
+    $ref: './domains/platform.yaml#/paths/inbox'
+  /v1/inbox/{itemId}/read:
+    $ref: './domains/platform.yaml#/paths/inboxRead'
+  /v1/client-config:
+    $ref: './domains/platform.yaml#/paths/clientConfig'
+  /v1/content/{key}:
+    $ref: './domains/platform.yaml#/paths/content'
+components:
+  securitySchemes:
+    oidc: { $ref: './components/common.yaml#/securitySchemes/oidc' }
+    dpop: { $ref: './components/common.yaml#/securitySchemes/dpop' }
+    bffSession: { $ref: './components/common.yaml#/securitySchemes/bffSession' }
+    widgetToken: { $ref: './components/common.yaml#/securitySchemes/widgetToken' }

@@ -1,0 +1,242 @@
+# Estate scenario simulator and liquidity engine. Module: simulation (lifa-core). FR-SIM-*, FR-LIQ-*.
+# Tax and cost figures come from versioned rule tables with effective dates (NFR-MNT-001). Every output is labelled
+# "estimate for planning only" and lists its assumptions (FR-SIM-006).
+
+paths:
+  ifIDiedToday:
+    get:
+      operationId: getIfIDiedToday
+      tags: [Simulation]
+      summary: 'Baseline "If I died today": gross estate, less liabilities, less estimated costs and taxes, distributed per the current will, or intestate rules if there is none (Plus)'
+      x-lifa-fr: [FR-SIM-001, FR-SIM-006]
+      x-lifa-entitlement: sim.baseline
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/SimulationResult' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  scenarios:
+    get:
+      operationId: listScenarios
+      tags: [Simulation]
+      summary: Saved scenarios
+      x-lifa-fr: [FR-SIM-002]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Scenarios
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/Scenario' } }
+    post:
+      operationId: createScenario
+      tags: [Simulation]
+      summary: Model a scenario without changing the live will (Plus 1, Family unlimited)
+      x-lifa-fr: [FR-SIM-002]
+      x-lifa-entitlement: sim.max_scenarios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/ScenarioInput' }
+      responses:
+        '201':
+          description: Created and evaluated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Scenario' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  scenario:
+    parameters:
+      - name: scenarioId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getScenario
+      tags: [Simulation]
+      summary: Scenario with its latest result (re-evaluated when the estate or rule table changes)
+      x-lifa-fr: [FR-SIM-002, FR-SIM-006]
+      responses:
+        '200':
+          description: Scenario
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Scenario' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    put:
+      operationId: updateScenario
+      tags: [Simulation]
+      summary: Replace the scenario's assumptions
+      x-lifa-fr: [FR-SIM-002]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/ScenarioInput' }
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Scenario' }
+    delete:
+      operationId: deleteScenario
+      tags: [Simulation]
+      summary: Delete a scenario
+      x-lifa-fr: [FR-SIM-002]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+
+  scenarioComparison:
+    get:
+      operationId: compareScenarios
+      tags: [Simulation]
+      summary: Compare up to four scenarios side by side, by beneficiary and liquidity (Family)
+      x-lifa-fr: [FR-SIM-003]
+      x-lifa-entitlement: sim.side_by_side
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: array
+            minItems: 2
+            maxItems: 4
+            items: { type: string }
+      responses:
+        '200':
+          description: Comparison
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scenarios]
+                properties:
+                  scenarios: { type: array, items: { $ref: '#/schemas/Scenario' } }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+
+  liquidity:
+    get:
+      operationId: getLiquidity
+      tags: [Liquidity]
+      summary: Liquidity check. The server returns only the detail the caller's tier allows (FR-LIQ-003).
+      description: >-
+        Free: gapExists only. Plus: adds the gap amount and the totals of cash needed and cash available.
+        Family: adds the full breakdown and the drivers. Policies and funds payable directly to nominees are excluded (FR-LIQ-002).
+      x-lifa-fr: [FR-LIQ-001, FR-LIQ-002, FR-LIQ-003, FR-SIM-006]
+      x-lifa-entitlement: liq.view_level
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Liquidity view
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/LiquidityView' }
+
+schemas:
+  Assumption:
+    type: object
+    required: [label]
+    properties:
+      label: { type: string }
+      value: { type: [string, 'null'] }
+  Disclaimed:
+    type: object
+    required: [basis, assumptions, ruleTableVersion, disclosure]
+    properties:
+      basis: { type: string, const: estimated }
+      assumptions: { type: array, items: { $ref: '#/schemas/Assumption' } }
+      ruleTableVersion: { type: string, description: Effective-dated rule table used (NFR-MNT-001) }
+      disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+  BeneficiaryOutcome:
+    type: object
+    required: [personId, displayName, amount]
+    properties:
+      personId: { type: string, format: uuid }
+      displayName: { type: string }
+      amount: { $ref: '../components/common.yaml#/schemas/Money' }
+      note: { type: [string, 'null'], examples: ['held in trust to 25'] }
+  SimulationResult:
+    allOf:
+      - $ref: '#/schemas/Disclaimed'
+      - type: object
+        required: [estateBase, costsAndTaxes, distributable, beneficiaries, outsideEstate]
+        properties:
+          estateBaseLabel: { type: string, examples: ['Your half of the joint estate'] }
+          estateBase: { $ref: '../components/common.yaml#/schemas/Money' }
+          costsAndTaxes: { $ref: '../components/common.yaml#/schemas/Money' }
+          distributable: { $ref: '../components/common.yaml#/schemas/Money' }
+          distributionBasis: { type: string, enum: [current_will, intestate] }
+          beneficiaries: { type: array, items: { $ref: '#/schemas/BeneficiaryOutcome' } }
+          outsideEstate:
+            description: Retirement funds and policies paid directly to nominees, outside this estimate
+            type: array
+            items:
+              type: object
+              required: [label, amount]
+              properties:
+                label: { type: string }
+                amount: { $ref: '../components/common.yaml#/schemas/Money' }
+          liquidityGapExists: { type: boolean }
+  ScenarioChange:
+    type: object
+    required: [kind]
+    properties:
+      kind: { type: string, enum: [set_allocation, add_bequest, remove_bequest, testamentary_trust, sell_asset, change_regime] }
+      personId: { type: [string, 'null'], format: uuid }
+      assetId: { type: [string, 'null'], format: uuid }
+      percent: { type: [number, 'null'] }
+      trustUntilAge: { type: [integer, 'null'] }
+      regime: { oneOf: [{ $ref: './estate.yaml#/schemas/MaritalRegime' }, { type: 'null' }] }
+  ScenarioInput:
+    type: object
+    required: [name, changes]
+    properties:
+      name: { type: string, maxLength: 60, examples: ['B · Trust for Lerato'] }
+      changes: { type: array, items: { $ref: '#/schemas/ScenarioChange' } }
+  Scenario:
+    allOf:
+      - $ref: '#/schemas/ScenarioInput'
+      - type: object
+        required: [id, result, readOnly]
+        properties:
+          id: { $ref: '../components/common.yaml#/schemas/Id' }
+          result: { $ref: '#/schemas/SimulationResult' }
+          liquidity: { $ref: '#/schemas/LiquidityView' }
+          readOnly: { type: boolean, description: Over the limit after a downgrade (FR-SUB-004) }
+  LiquidityLine:
+    type: object
+    required: [label, amount]
+    properties:
+      label: { type: string, examples: ["Executor's fees"] }
+      amount: { $ref: '../components/common.yaml#/schemas/Money' }
+  LiquidityView:
+    allOf:
+      - $ref: '#/schemas/Disclaimed'
+      - type: object
+        required: [viewLevel, gapExists]
+        properties:
+          viewLevel: { type: string, enum: [gap_flag, gap_amount, breakdown] }
+          gapExists: { type: boolean }
+          gapAmount: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+          cashNeeded: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+          cashAvailable: { oneOf: [{ $ref: '../components/common.yaml#/schemas/Money' }, { type: 'null' }] }
+          needsBreakdown: { type: [array, 'null'], items: { $ref: '#/schemas/LiquidityLine' } }
+          availableBreakdown: { type: [array, 'null'], items: { $ref: '#/schemas/LiquidityLine' } }
+          educationTopics:
+            description: Content only (cover, cash reserve, asset sale, restructure). Never a product recommendation. The adviser link is R3 (C12).
+            type: array
+            items: { type: string }

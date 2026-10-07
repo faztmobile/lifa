@@ -1,0 +1,448 @@
+# Will Builder. Module: will (lifa-core); PDFs by docgen (lifa-workers). FR-WIL-*.
+# Wills are generated from attorney-approved templates in English only (FR-WIL-009, FR-ONB-008).
+# Lifa never e-signs a will (FRS 1.3). Every response carries the not-law-firm disclosure (FR-WIL-018).
+
+paths:
+  wills:
+    get:
+      operationId: listWills
+      tags: [Will]
+      summary: Will versions. Free sees the single draft and the current signed version (D-015); Plus sees full history.
+      x-lifa-fr: [FR-WIL-012]
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Wills
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, disclosure]
+                properties:
+                  items: { type: array, items: { $ref: '#/schemas/WillSummary' } }
+                  disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+    post:
+      operationId: createWill
+      tags: [Will]
+      summary: Start a will, codicil (Plus) or mirror/joint will (Family)
+      description: >-
+        Free: one draft at a time (entitlement wil.max_drafts = 1, D-015). kind = codicil needs wil.codicils and a
+        signed amendsWillId (FR-WIL-013). kind = mirror or joint needs wil.mirror and a linked household; joint also
+        needs massingWarningAcknowledged (FR-WIL-014). Requires identityStatus ≥ document_valid and the minimum age
+        (FR-ONB-002, FR-ONB-004).
+      x-lifa-fr: [FR-WIL-001, FR-WIL-012, FR-WIL-013, FR-WIL-014, FR-ONB-002, FR-ONB-004]
+      x-lifa-entitlement: wil.max_drafts
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/WillCreate' }
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Will' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  will:
+    parameters:
+      - $ref: '#/parameters/WillId'
+    get:
+      operationId: getWill
+      tags: [Will]
+      summary: Full will draft or version
+      x-lifa-fr: [FR-WIL-001]
+      responses:
+        '200':
+          description: Will
+          headers:
+            ETag: { $ref: '../components/common.yaml#/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Will' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+    patch:
+      operationId: updateWill
+      tags: [Will]
+      summary: Update the personal-details step and bounded free-text wishes (draft only)
+      x-lifa-fr: [FR-WIL-001, FR-WIL-009, FR-VLT-011]
+      parameters:
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/schemas/WillPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Will' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+        '412': { $ref: '../components/common.yaml#/responses/PreconditionFailed' }
+    delete:
+      operationId: discardWillDraft
+      tags: [Will]
+      summary: Discard a draft. Signed versions can never be deleted this way (FR-SUB-004).
+      x-lifa-fr: [FR-SUB-004]
+      responses:
+        '204': { $ref: '../components/common.yaml#/responses/NoContent' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  willResidue:
+    put:
+      operationId: setResidueAllocations
+      tags: [Will]
+      summary: Step 3. Residue shares by percentage, which must total exactly 100%.
+      description: >-
+        AT-WIL-01: 60% + 50% returns 422 with message "Allocations total 110%; they must total 100%".
+        A minor direct heir returns a minor_direct_heir warning (FR-WIL-007, Plus).
+      x-lifa-fr: [FR-WIL-003, FR-WIL-007, FR-FAM-005]
+      parameters:
+        - $ref: '#/parameters/WillId'
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [allocations]
+              properties:
+                allocations: { type: array, items: { $ref: '#/schemas/Allocation' } }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillWrite' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  willBequests:
+    put:
+      operationId: setBequests
+      tags: [Will]
+      summary: Step 4. Specific gifts linked to inventory assets. A single asset cannot be bequeathed in full to two people.
+      x-lifa-fr: [FR-WIL-004, FR-WIL-009, FR-FAM-005]
+      parameters:
+        - $ref: '#/parameters/WillId'
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bequests]
+              properties:
+                bequests: { type: array, items: { $ref: '#/schemas/Bequest' } }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillWrite' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  willGuardianship:
+    put:
+      operationId: setGuardianship
+      tags: [Will]
+      summary: Step 5. A primary and an alternative guardian are required when a child under 18 is declared, unless the owner explicitly decides not to nominate.
+      x-lifa-fr: [FR-WIL-005]
+      parameters:
+        - $ref: '#/parameters/WillId'
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/Guardianship' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillWrite' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  willExecutors:
+    put:
+      operationId: setExecutors
+      tags: [Will]
+      summary: Step 6. An individual or professional executor and an alternate. The response states that the Master must still appoint the executor.
+      x-lifa-fr: [FR-WIL-006]
+      parameters:
+        - $ref: '#/parameters/WillId'
+        - $ref: '../components/common.yaml#/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [executor]
+              properties:
+                executor: { $ref: '#/schemas/ExecutorNomination' }
+                alternate: { $ref: '#/schemas/ExecutorNomination' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillWrite' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  willReview:
+    get:
+      operationId: getWillReview
+      tags: [Will]
+      summary: Step 7. Summary plus blocking findings and warnings.
+      x-lifa-fr: [FR-WIL-001, FR-WIL-003, FR-WIL-004, FR-WIL-005, FR-WIL-007, FR-WIL-017, FR-WIL-018]
+      parameters:
+        - $ref: '#/parameters/WillId'
+      responses:
+        '401': { $ref: '../components/common.yaml#/responses/Unauthorized' }
+        '200':
+          description: Review
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillReview' }
+
+  willSigningPack:
+    post:
+      operationId: generateSigningPack
+      tags: [Will]
+      summary: Generate the print-and-sign pack. Proposed witnesses who inherit, or whose spouse inherits, block generation (AT-WIL-02).
+      description: >-
+        Output: a will PDF with page numbers, signature lines on every page, two witness blocks and an illustrated
+        signing checklist (FR-WIL-010), stored in the owner's vault. Completes within 10 s (NFR-PRF-003).
+        Records the template set version (NFR-MNT-002).
+      x-lifa-fr: [FR-WIL-008, FR-WIL-009, FR-WIL-010, NFR-PRF-003, NFR-MNT-002]
+      parameters:
+        - $ref: '#/parameters/WillId'
+        - $ref: '../components/common.yaml#/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proposedWitnesses:
+                  type: array
+                  maxItems: 2
+                  items: { $ref: '#/schemas/Witness' }
+      responses:
+        '202': { $ref: '../components/common.yaml#/responses/Accepted' }
+        '422':
+          description: Blocking findings, for example witness_is_beneficiary or residue_not_100
+          content:
+            application/problem+json:
+              schema: { $ref: '../components/common.yaml#/schemas/Problem' }
+
+  willExecution:
+    post:
+      operationId: recordWillExecution
+      tags: [Will]
+      summary: Record the paper signing (date, witnesses, location of the original, optional photo). Marks the version signed and current.
+      x-lifa-fr: [FR-WIL-011, FR-WIL-012, FR-WIL-008]
+      parameters:
+        - $ref: '#/parameters/WillId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/schemas/WillExecution' }
+      responses:
+        '200':
+          description: Signed
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/WillWrite' }
+        '422': { $ref: '../components/common.yaml#/responses/Unprocessable' }
+
+  willCurrentSigned:
+    put:
+      operationId: setCurrentSignedWill
+      tags: [Will]
+      summary: Choose which signed version is current (Plus). Exactly one is current at a time.
+      x-lifa-fr: [FR-WIL-012]
+      x-lifa-entitlement: wil.versioning
+      parameters:
+        - $ref: '#/parameters/WillId'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/schemas/Will' }
+        '403': { $ref: '../components/common.yaml#/responses/Forbidden' }
+        '409': { $ref: '../components/common.yaml#/responses/Conflict' }
+
+  documentJob:
+    get:
+      operationId: getJob
+      tags: [Jobs]
+      summary: Status of an asynchronous job
+      x-lifa-fr: [NFR-PRF-003]
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema: { $ref: '../components/common.yaml#/schemas/Job' }
+        '404': { $ref: '../components/common.yaml#/responses/NotFound' }
+
+parameters:
+  WillId:
+    name: willId
+    in: path
+    required: true
+    schema: { type: string, format: uuid }
+
+schemas:
+  WillKind:
+    type: string
+    enum: [single, codicil, mirror, joint]
+  WillStatus:
+    description: FRS §10 Will.status
+    type: string
+    enum: [draft, in_review, signed, revoked, superseded]
+  WillCreate:
+    type: object
+    required: [kind]
+    properties:
+      kind: { $ref: '#/schemas/WillKind' }
+      copyFromWillId: { type: [string, 'null'], format: uuid }
+      amendsWillId: { type: [string, 'null'], format: uuid, description: Codicil only }
+      massingWarningAcknowledged: { type: boolean, description: Joint wills only (FR-WIL-014) }
+  WillSummary:
+    type: object
+    required: [id, kind, status, version, isCurrentSigned, updatedAt]
+    properties:
+      id: { $ref: '../components/common.yaml#/schemas/Id' }
+      kind: { $ref: '#/schemas/WillKind' }
+      status: { $ref: '#/schemas/WillStatus' }
+      version: { type: integer }
+      label: { type: string, examples: ['Draft', 'Draft 2', 'Version 2'] }
+      isCurrentSigned: { type: boolean }
+      stale: { type: boolean, description: FR-WIL-017 }
+      signedOn: { $ref: '../components/common.yaml#/schemas/Date' }
+      updatedAt: { $ref: '../components/common.yaml#/schemas/Timestamp' }
+  Allocation:
+    type: object
+    required: [personId, percent]
+    properties:
+      personId: { type: string, format: uuid }
+      percent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+      alternatePersonId: { type: [string, 'null'], format: uuid, description: FR-FAM-005 alternate if they predecease }
+  Bequest:
+    type: object
+    required: [assetId, personId, share]
+    properties:
+      id: { type: string, format: uuid, readOnly: true }
+      assetId: { type: string, format: uuid }
+      personId: { type: string, format: uuid }
+      share: { type: number, exclusiveMinimum: 0, maximum: 100, description: Percent of the asset }
+      description: { type: string, maxLength: 300, description: Bounded free text (FR-WIL-009) }
+      condition: { type: [string, 'null'], maxLength: 200 }
+      alternatePersonId: { type: [string, 'null'], format: uuid }
+  Guardianship:
+    type: object
+    required: [decision]
+    properties:
+      decision: { type: string, enum: [nominate, decline_to_nominate, not_applicable] }
+      primaryPersonId: { type: [string, 'null'], format: uuid }
+      alternatePersonId: { type: [string, 'null'], format: uuid }
+      declineReason: { type: [string, 'null'], maxLength: 300 }
+  ExecutorNomination:
+    type: object
+    required: [kind]
+    properties:
+      kind: { type: string, enum: [individual, professional] }
+      personId: { type: [string, 'null'], format: uuid }
+      professionalName: { type: [string, 'null'], maxLength: 160 }
+  Witness:
+    type: object
+    required: [fullName]
+    properties:
+      fullName: { type: string, maxLength: 160 }
+      personId: { type: [string, 'null'], format: uuid, description: When the witness is in the family tree }
+      spousePersonId: { type: [string, 'null'], format: uuid }
+  WillExecution:
+    type: object
+    required: [signedOn, witnesses, originalLocation]
+    properties:
+      signedOn: { $ref: '../components/common.yaml#/schemas/Date' }
+      witnesses: { type: array, minItems: 2, maxItems: 2, items: { $ref: '#/schemas/Witness' } }
+      originalLocation: { type: string, maxLength: 200, examples: ['Naidoo & Partners, Bryanston'] }
+      signaturePagePhotoDocumentId: { type: [string, 'null'], format: uuid }
+  WillPatch:
+    type: object
+    properties:
+      personalDetailsConfirmed: { type: boolean }
+      wishes: { type: [string, 'null'], maxLength: 2000, description: 'Bounded free text, checked for secrets' }
+      funeralWishes: { type: [string, 'null'], maxLength: 1000 }
+  Will:
+    allOf:
+      - $ref: '#/schemas/WillSummary'
+      - type: object
+        required: [steps, allocations, bequests, disclosure]
+        properties:
+          templateSetVersion: { type: [string, 'null'], description: Set when the signing pack is generated (NFR-MNT-002) }
+          amendsWillId: { type: [string, 'null'], format: uuid }
+          steps:
+            description: The seven wizard steps and their completion (FR-WIL-001)
+            type: array
+            items:
+              type: object
+              required: [step, complete]
+              properties:
+                step: { type: string, enum: [personal, family, beneficiaries, bequests, guardianship, executor, review] }
+                complete: { type: boolean }
+          allocations: { type: array, items: { $ref: '#/schemas/Allocation' } }
+          allocatedPercent: { type: number }
+          bequests: { type: array, items: { $ref: '#/schemas/Bequest' } }
+          guardianship: { $ref: '#/schemas/Guardianship' }
+          executor: { $ref: '#/schemas/ExecutorNomination' }
+          alternateExecutor: { $ref: '#/schemas/ExecutorNomination' }
+          wishes: { type: [string, 'null'] }
+          execution: { oneOf: [{ $ref: '#/schemas/WillExecution' }, { type: 'null' }] }
+          masterAppointmentNote: { type: string, description: FR-WIL-006 }
+          disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
+  WillWrite:
+    allOf:
+      - $ref: '#/schemas/Will'
+      - type: object
+        properties:
+          warnings: { type: array, items: { $ref: '../components/common.yaml#/schemas/Warning' } }
+  WillReview:
+    type: object
+    required: [summary, findings, canGenerate, disclosure]
+    properties:
+      summary:
+        type: array
+        items:
+          type: object
+          required: [label, value]
+          properties:
+            label: { type: string }
+            value: { type: string }
+      findings: { type: array, items: { $ref: './estate.yaml#/schemas/ValidationFinding' } }
+      canGenerate: { type: boolean }
+      signingInstructions:
+        description: Attorney-approved content (OPEN_QUESTIONS D5/D6)
+        type: array
+        items: { type: string }
+      pageCountEstimate: { type: integer }
+      disclosure: { $ref: '../components/common.yaml#/schemas/Disclosure' }
