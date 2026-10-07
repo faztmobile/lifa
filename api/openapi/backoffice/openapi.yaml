@@ -196,7 +196,7 @@ paths:
     post:
       operationId: recordCaseDecision
       tags: [Cases]
-      summary: Record a reviewer decision. Closing a case needs two different reviewers. Release A cannot activate (D-023).
+      summary: Record a reviewer decision. Approving activation needs two different reviewers (FR-ACT-003).
       x-lifa-fr: [FR-DMS-004, FR-DMS-005, FR-ACT-003, FR-ACT-004, FR-ACT-008]
       parameters:
         - $ref: '#/components/parameters/CaseId'

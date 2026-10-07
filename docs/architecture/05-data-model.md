@@ -36,13 +36,15 @@ Field-level crypto lives in `platform/security` (`@Encrypted` JPA converter). Pe
 | Bequest | `will.bequests` | `asset_id`, `person_id`, `share_pct`, `description_enc`, `condition`, `alternate_person_id` | Legal | pg-a |
 | Nomination | `will.nominations` | `role (executor/guardian/trustee)`, `person_id` or `professional_name`, `order`. **Not counted as a grant (D-016)** | Legal | pg-a |
 | Document | `vault.documents` | `owner_user_id`, `type`, `type_suggested`, `state (stored/held)`, `blob_ref`, `wrapped_dek`, `kek_version`, `size`, `media_type`, `sha256`, `expires_on`, `folder_id` | Special/Financial | pg-b |
-| DigitalAsset | — (R3, reserved) | — | — | — |
+| DigitalAsset | `digital.digital_assets`, `digital.sealed_instructions` | `category`, `platform`, `identifier_masked`, `wish`, `wish_detail`, `beneficiary_person_id`, `recovery_location_enc`; sealed: `ciphertext`, `threshold`, `holder_person_ids`, `share_fingerprints` (Lifa never holds a share, D-034) | Sensitive | pg-b |
 | Scenario | `simulation.scenarios` | `changes jsonb`, `rule_table_version`, `result jsonb`, `computed_at` | Financial | pg-a |
 | Score | `score.scores`, `score.score_history` | `total`, `domains jsonb`, `weights_version`, `computed_at`, `trigger` | Personal | pg-a |
 | CheckIn | `lifecycle.checkin_settings`, `lifecycle.checkins` | `interval_days`, `grace_days`, `armed`, `paused_until`, `due_at`, `completed_at`, `channel` | Personal | pg-b |
-| VerificationCase | `lifecycle.cases`, `lifecycle.case_reports`, `lifecycle.case_decisions`, `lifecycle.case_evidence` | `trigger`, `status`, `requester`, `evidence_refs` (blob in `lifecycle-evidence` storage account), `reviewer_ids`, `decision`, timestamps | Special | pg-b |
-| EstateFile, Claim | — (R3, reserved) | — | — | — |
-| Professional, Booking | — (R3, reserved) | — | — | — |
+| VerificationCase | `lifecycle.cases`, `lifecycle.case_reports`, `lifecycle.case_decisions`, `lifecycle.case_evidence`, `lifecycle.evidence_access_grants` | `trigger (dms/verifier/executor)`, `kind (death/incapacity)`, `status`, `requester`, `evidence_refs` (blob in `lifecycle-evidence` storage account), `checklist jsonb`, `reviewer_ids` (two distinct), `notice_started_at`, `notice_ends_at`, `waiver_reason`, `activated_at` | Special | pg-b |
+| EstateFile | `executor.estate_files`, `executor.tasks`, `executor.deadlines`, `executor.inventory_items`, `executor.institution_requests`, `executor.updates`, `executor.members` | `estate_id`, `route`, `phase`, `snapshot_version` (frozen owner data copied at activation), `access_basis (paid_plan_benefit/executor_pack)`, `free_until`, `distribution_completed_at`, `retain_until`, `retention_reason` | Special, financial | pg-b |
+| Claim | `executor.claims` | `estate_file_id`, `party`, `direction`, `amount_cents`, `status`, `evidence_document_id` | Financial | pg-b |
+| Professional | `marketplace.professionals`, `marketplace.services`, `marketplace.registration_evidence`, `marketplace.listing_subscriptions` | `category`, `practice_name`, `lpc_no`/`fsp_no`/`body_no`, `verification_status`, `verified_until`, `listing_tier`, `service_areas`, `languages`, `payout_subaccount_ref` | Business | pg-a |
+| Booking | `marketplace.bookings`, `marketplace.case_bundles`, `marketplace.reviews`, `marketplace.attorney_reviews`, `marketplace.attorney_comments` | `professional_id`, `user_id`, `service_id`, `slot`, `status`, `payment_ref`; bundle: `items`, `expires_on`, `policy_grant_id`; review: `rating`, `text`, `moderation_status` | Personal | pg-a |
 | Subscription | `billing.subscriptions` | `user_id`, `channel`, `product_id`, `original_transaction_id`/`purchase_token`, `status`, `period_end`, `grace_until`, `auto_renew` | Financial | pg-a |
 | Entitlement | `entitlement.grants` | `user_id`, `feature_key`, `limit`, `source (plan/addon/trial/promo)`, `source_ref`, `valid_from`, `valid_to`; `entitlement.effective` (materialised per user, versioned) | Operational | pg-a |
 | AuditEvent | `audit.events` (append-only) | `seq bigserial`, `stream (estate id or 'system')`, `actor`, `actor_kind`, `action`, `object_type`, `object_id`, `outcome`, `at`, `prev_hash`, `hash`, `evidence_ref` | Security | pg-ledger |
@@ -76,6 +78,14 @@ Field-level crypto lives in `platform/security` (`@Encrypted` JPA converter). Pe
 | NotificationPreference, PushRegistration, InboxItem, DeliveryLog | `notification.*` | Channels, generic push payloads, content behind unlock | NTF-001, 004 |
 | Outbox / Inbox | `<module>.outbox`, `<module>.inbox` | Transactional events, idempotent consumers | D-025 |
 | ConfigVersion | `content` (repo) + `config.versions` (runtime) | Weights, rule tables, templates, plans with effective dates and approver | NFR-MNT-001/002 |
+| ReleaseFlag | `config.release_flags` | Flag, enabled, gate evidence reference, approver (D-026) | FRS 13.2 |
+| Trust, TrustQuestionnaire | `trust.trusts`, `trust.questionnaire_responses` | Existing trusts; suitability answers and prompts shown | TRS-002, TRS-003 |
+| TrustClause | `will.trust_clauses` | Kind, beneficiaries, trustees, vesting age, template clause ID | WIL-015 |
+| Goal | `wallet.goals` | Kind, target, date, progress | WAL-004 |
+| GroupCode, Attribution | `entitlement.group_codes`, `entitlement.code_redemptions` | Group, grant, expiry, per-user attribution | ONB-010, SUB-008 |
+| Conversation, Message | `ai.conversations`, `ai.messages` | Redacted text, classifications, citations; purged at 90 days | AI-001..006, FRS 12.3 |
+| KnowledgeArticle, Embedding | `ai.kb_articles`, `ai.kb_chunks (vector)` | Curated SA articles with version and approver | AI-001 |
+| AiQuotaUsage, EvalRun | `ai.quota_usage`, `ai.eval_runs` | Monthly count per user; 300-question evaluation results (13.2) | AI-004 |
 
 ## 5.4 Key invariants (enforced in the database and in services)
 
@@ -90,7 +100,13 @@ Field-level crypto lives in `platform/security` (`@Encrypted` JPA converter). Pe
 | Witness ≠ beneficiary (or their spouse) | Blocking check at signing-pack generation and at execution recording | FR-WIL-008, AT-WIL-02 |
 | Minor flag follows date of birth | Nightly job plus on-read derivation; emits `person.minor-status-changed` | FR-FAM-004, AT-FAM-01 |
 | Audit is append-only | `audit` role has INSERT only; a trigger rejects UPDATE/DELETE; hash chain; daily anchor to immutable blob | NFR-AUD-001 |
-| A frozen estate is read-only | Every write path checks `estate.state = living` (409 `estate_frozen`) | FR-ACT-005 (R3 ready) |
+| A frozen estate is read-only | Every owner write path checks `estate.state = living` (409 `estate_frozen`) | FR-ACT-005 |
+| Four-eyes activation | `case_decisions` unique `(case_id, reviewer_id)`; approval needs two distinct reviewers, neither the case opener nor related to the estate | FR-ACT-003 |
+| 72-hour notice before activation | `activated_at ≥ notice_ends_at` unless `waiver_reason` is set by the Compliance role | FR-ACT-004 |
+| Owner login cancels any open case | The identity login event cancels open cases in one transaction and notifies the owner | FR-DMS-006, AT-ACT-01 |
+| Only `lifecycle` changes `estate.state` | Estate-state column writable only by the lifecycle DB role (`estate` exposes a state-transition API to lifecycle only) | FR-ACT-005 |
+| Lifa never holds a sealed-instruction share | No column or API accepts a share; only fingerprints | FR-DIG-003 |
+| Listing tier never changes review scores | Rating computed only from moderated reviews, with no join to `listing_subscriptions` | FR-MKT-008 |
 
 ## 5.5 Retention and deletion (FRS 12.3)
 
@@ -103,6 +119,9 @@ Field-level crypto lives in `platform/security` (`@Encrypted` JPA converter). Pe
 | Billing and invoices | 5 years from the end of the tax year (statutory), outside the crypto-shred scope; minimal fields only. |
 | Backups | 35 days (Postgres PITR). Crypto-shred makes deleted owners' encrypted fields and documents unreadable in them. |
 | Extraction jobs | 7 days or on confirmation, whichever is first. |
+| Estate file | Read-only for 5 years after distribution is complete, then deleted unless extended with a documented reason (FR-EXE-011). |
+| AI conversations | 90 days, redacted (FRS 12.3). |
+| Professional registration evidence | While listed plus 5 years. |
 
 ## 5.6 Entity-relationship overview
 

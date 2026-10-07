@@ -65,7 +65,17 @@ iOS mirrors this with SPM packages (`LifaAPI`, `LifaSecurity`, `LifaDesign`, `Fe
 - CI needs DevEco command-line tools on a self-hosted runner (D-010). Signing certificates come from AppGallery Connect.
 - Store review and SDK availability move quickly. Every Kit and API version is pinned in `oh-package.json5`, and its minimum API level is recorded in DECISIONS when it is chosen.
 
-## 8.5 Web
+## 8.5 Who uses which client
+
+| Actor | Android, iOS, HarmonyOS | Web |
+|---|---|---|
+| Owner and spouse | ✓ | ✓ |
+| Trusted person, verifier, beneficiary | ✓ | ✓ |
+| Executor (workspace) | ✓ (checklist, updates, documents) | ✓ (full workspace incl. claims register and exports) |
+| Professional (listing, bookings, attorney review) | — | ✓ (D-032) |
+| Lifa staff | — | back-office console only |
+
+## 8.6 Web
 
 - SPA served from Front Door, with a strict CSP (`default-src 'self'`, no third-party scripts on authenticated pages, FRS 9.1). The Paystack checkout is a top-level redirect, not an embedded iframe.
 - web-bff (Kotlin, Spring) holds tokens in an encrypted Redis session. The cookie is `__Host-lifa-session` (HttpOnly, Secure, SameSite=Strict) with a double-submit CSRF token.

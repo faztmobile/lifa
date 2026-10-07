@@ -567,7 +567,7 @@ parameters:
 
 schemas:
   EstateState:
-    description: FRS §10 Estate.state. Release A uses living and verifying only (D-023).
+    description: FRS §10 Estate.state. Only the lifecycle module changes it (FR-ACT-005).
     type: string
     enum: [living, verifying, activated, administering, closed]
   MaritalStatus:

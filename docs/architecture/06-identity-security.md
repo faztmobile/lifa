@@ -92,7 +92,21 @@ clients (the `badge` field is display-only). Values below come from FRS 2.3. Any
 | `emg.package` | – | ✓ | ✓ | EMG-003 |
 | `wal.monthly_tracking` | – | ✓ | ✓ | WAL-002/003 |
 | `onb.identity_verification` | – | ✓ | ✓ | ONB-003 |
-| `executor.workspace_months` | 0 | 24 | 24 | ACT-006 (recorded now for R3) |
+| `executor.workspace_months` | 0 (Executor Pack offered) | 24 | 24 + priority support | ACT-006, SUB-005 |
+| `wil.trust_clauses` | – | – | ✓ | WIL-015 |
+| `wil.attorney_review` | add-on (booking) | add-on | add-on | WIL-016 |
+| `fam.special_flags` (blended / special needs) | – | – | ✓ | FAM-007 |
+| `sim.promote`, `sim.simultaneous_death` | – | – | ✓ | SIM-004, SIM-005 |
+| `dig.max_items` | 0 | 10 | ∞ | 2.3, DIG-001 |
+| `dig.sealed_instruction` | – | – | ✓ | DIG-003 |
+| `trs.education` | ✓ | ✓ | ✓ | TRS-001 |
+| `trs.questionnaire`, `trs.records` | – | – | ✓ | TRS-002, TRS-003 |
+| `act.incapacity` | – | ✓ | ✓ | ACT-007 |
+| `wal.goals` | – | – | ✓ | WAL-004 |
+| `mkt.search`, `mkt.book` | ✓ | ✓ | ✓ | MKT-003, MKT-004 |
+| `ai.questions_per_month` | 5 | 50 | 200 | AI-004 |
+| `ai.personalisation` | – | ✓ (with consent) | ✓ (with consent) | AI-002 |
+| `executor.pack` (for executors of Free owners) | product: R1,499 once or R199/month | – | – | 2.4, ACT-006 |
 | `trial.plus_days` | 14 (once) | – | – | SUB-003 |
 
 Downgrade (FR-SUB-004): items above the new limit are flagged `read_only` (oldest kept editable). Nothing is ever
@@ -113,10 +127,11 @@ Managed HSM (South Africa North; DR replica South Africa West)
  │    └─ wraps the owner field DEK     → identity.users.field_dek_wrapped  (cached unwrapped ≤ 5 min in memory)
  └─ service keys: audit-signing (ES256), widget-token signing, step-up token signing
 ```
+- Per-owner KEKs in Managed HSM are confirmed at the target scale (D-028).
 - Pool A services decrypt owner fields through `policy-client` → `vault.unwrapFieldKey` (pool B), which checks the
   caller's workload identity and the request's subject. Unwrapped keys are held in memory only.
 - Rotation re-wraps DEKs lazily (`kek_version`). Old KEK versions stay active for unwrap until re-wrap completes.
-- Crypto-shred deletes `owner-kek/<ownerId>`. Scale and cost are open (OPEN_QUESTIONS A8); the fallback is described in threat model V-K3.
+- Crypto-shred deletes `owner-kek/<ownerId>`.
 
 ## 6.6 Secret detection (FR-VLT-011)
 
@@ -151,5 +166,7 @@ Push payloads: generic title "You have a Lifa reminder" plus an opaque inbox ID 
 | Mesh | AKS Istio add-on, STRICT mTLS, `AuthorizationPolicy` per workload (03 §3.2) |
 | Secrets | Key Vault + Workload Identity; no secrets in images or env files |
 | Privileged access | Entra PIM, JIT AKS and DB access with approval, session recording through Bastion; break-glass accounts alerting in Sentinel |
+| Back-office roles | `support`, `ops_reviewer` (case review, two required per activation), `compliance_officer` (notice waiver, disputed cases, release flags), `marketplace_vetting`, `moderator`, `content_publisher`; a reviewer can never approve a case they opened or an evidence grant they requested |
+| Professional accounts | Separate Entra user flow; account type `professional`; MFA required; access to owner data only through a booking case bundle (time-boxed policy grant, owner notified on access) |
 | Detection | Sentinel analytics: mass document reads, release-rule churn, staff case access, OTP velocity, many failed step-ups |
 | SDLC | CodeQL, detekt, dependency review + Dependabot, Trivy image scan, checkov for Terraform, MobSF on mobile builds, DAST (ZAP) on staging |

@@ -7,8 +7,8 @@ SDKs are generated from them, and CI fails if generated code drifts or a change 
 
 | Spec | Root | Consumers | Operations |
 |---|---|---|---|
-| Public | `api/openapi/public/openapi.yaml` (plus `domains/*.yaml` and `components/common.yaml`) | Android GMS/HMS, iOS, HarmonyOS, web (through web-bff) | 138 operations on 102 paths, 23 tags |
-| Back-office | `api/openapi/backoffice/openapi.yaml` | Internal console (D-014) | 10 |
+| Public | `api/openapi/public/openapi.yaml` (plus `domains/*.yaml` and `components/common.yaml`) | Android GMS/HMS, iOS, HarmonyOS, web (through web-bff) | 210 operations on 156 paths, 30 tags |
+| Back-office | `api/openapi/backoffice/openapi.yaml` | Internal console (D-014) | 19 |
 | Webhooks | `api/openapi/webhooks/openapi.yaml` | Apple, Google (Pub/Sub), Huawei, Paystack, Clickatell | 5 |
 
 The public spec is split by domain, so each domain file maps to one backend module (see the table in §4.4).
@@ -19,7 +19,7 @@ Validation: `npm run api:lint` runs Redocly CLI 2.59.0 (pinned) with the `recomm
 
 All three specs currently lint with no errors or warnings. Code-generation smoke tests on the bundle:
 `openapi-typescript` 7.13.0 succeeds. OpenAPI Generator 7.17.0 (`kotlin`, `jvm-retrofit2` +
-kotlinx.serialization) generates 23 API classes **that compile**. Getting there surfaced three rules, now
+kotlinx.serialization) generates 30 API classes **that compile**. Getting there surfaced three rules, now
 enforced by review:
 1. **No free-form JSON objects** (`additionalProperties: true` or untyped `{}`). kotlinx.serialization cannot handle
    them. Opaque browser payloads such as WebAuthn travel as JSON strings (`contentMediaType: application/json`).
@@ -33,6 +33,7 @@ enforced by review:
 |---|---|
 | Versioning | URI major version (`/v1`). Additive changes only within v1; `oasdiff` breaking-change check on every PR. Clients below `minimumVersion` (from `/v1/client-config`) are forced to update. |
 | Traceability | `x-lifa-fr: [FR-…]` on every operation; feeds `09-traceability.md` and the test matrix. |
+| Release flags | Capabilities whose FRS 13.2 gate has not passed return 403 `release_disabled` (D-026). |
 | Errors | RFC 9457 `application/problem+json` with a stable `code` enum. Clients switch on `code`, never on text. |
 | Not found vs forbidden | A denied read of another person's item returns **404**, not 403, so that existence isn't revealed (FR-PRM-001). 403 is reserved for entitlement limits and the caller's own items. |
 | Entitlements | `x-lifa-entitlement: <key>`. A violation returns 403 `entitlement_limit` / `entitlement_missing` with `entitlementKey` and `limit`, and clients show the upgrade prompt only then (FR-SUB-007). Safety functions (emergency card, will draft, intestate preview) never carry an entitlement gate. |
@@ -71,10 +72,15 @@ and its own DPoP proof (BFF-held key) when it calls APIM. See 06 for the flows.
 | `access.yaml` | policy | lifa-protected |
 | `protection.yaml` | emergency (card, package); lifecycle (check-in, verifier) | lifa-core; lifa-lifecycle |
 | `simulation.yaml` | simulation | lifa-core |
+| `activation.yaml` | lifecycle | lifa-lifecycle |
+| `executor.yaml` | executor | lifa-executor |
+| `legacy.yaml` | digital; trust | lifa-executor; lifa-marketplace |
+| `marketplace.yaml` | marketplace | lifa-marketplace |
+| `ai.yaml` | ai | lifa-ai |
 | `platform.yaml` | notification, config | lifa-core |
 
 APIM routes by path prefix to the deployables. Splitting by prefix keeps pool-B content endpoints
-(`/v1/vault/**`, `/v1/shared/**`, `/v1/access/**`, `/v1/extractions/**`) behind a separate APIM product with
+(`/v1/vault/**`, `/v1/shared/**`, `/v1/access/**`, `/v1/extractions/**`, `/v1/estate-files/**`, `/v1/digital-assets/**`, `/v1/activation-requests/**`) behind a separate APIM product with
 stricter rate limits and WAF rules.
 
 ## 4.5 Code generation per platform

@@ -23,6 +23,9 @@ lifa/
 ├── content/                        # versioned, compliance-approved configuration (NFR-MNT-001/002)
 │   ├── will-templates/<set-version>/   # attorney-approved clauses (OPEN_QUESTIONS D5)
 │   ├── assessment/<version>.yaml       # readiness questions (FR-SCR-001)
+│   ├── executor/<version>/             # checklist, deadlines, institution lists (FR-EXE, [VERIFY])
+│   ├── knowledge-base/<version>/       # AI adviser articles + eval set (FR-AI-001, 13.2)
+│   ├── guidance/                       # digital-platform guidance (FR-DIG-004)
 │   ├── score-weights/<version>.yaml    # FR-SCR-002 (D-018)
 │   ├── rule-tables/<effective-date>/   # tax/cost tables, [VERIFY] until approved (D9)
 │   ├── entitlements/plans.yaml         # plan → feature-key limits (FR-SUB-001)
@@ -43,15 +46,17 @@ lifa/
 │   │   ├── identity/  entitlement/  billing/  policy/  audit/
 │   │   ├── score/  will/  estate/  wallet/  vault/  extraction/
 │   │   ├── simulation/  lifecycle/  notification/  docgen/  emergency/
+│   │   ├── executor/  digital/  trust/  marketplace/  ai/
 │   │   └── backoffice/
 │   └── apps/                       # Spring Boot entry points = deployables
 │       ├── lifa-core/  lifa-identity/  lifa-commerce/
 │       ├── lifa-protected/  lifa-lifecycle/  lifa-audit/  lifa-workers/
+│       ├── lifa-executor/  lifa-marketplace/  lifa-ai/
 │       └── web-bff/  backoffice-bff/
 ├── clients/
 │   ├── android/                    # Gradle; flavours gms + hms
 │   │   ├── app/  core/{api,design,security,data}/
-│   │   ├── feature/{onboarding,score,will,estate,family,vault,emergency,plans,...}/
+│   │   ├── feature/{onboarding,score,will,estate,family,vault,emergency,plans,activation,executor,digital,trusts,marketplace,adviser,...}/
 │   │   ├── provider/{billing,push,location}/{gms,hms}/
 │   │   └── widget/                 # Glance emergency card
 │   ├── web/                        # Vite + React + TanStack Query (pnpm)

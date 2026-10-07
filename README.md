@@ -3,7 +3,7 @@
 Freemium estate-planning app for South African families, by WZDRY (Pty) Ltd.
 Lifa organises, educates and connects. It is not a law firm, executor or financial services provider.
 
-**Status:** Release A (FRS R1 + R2), step 1 (architecture) under review.
+**Status:** Release A (whole FRS, R1–R4, each later capability behind a release flag), step 1 (architecture) under review.
 
 | Start here | |
 |---|---|

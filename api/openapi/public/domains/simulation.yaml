@@ -39,7 +39,7 @@ paths:
       operationId: createScenario
       tags: [Simulation]
       summary: Model a scenario without changing the live will (Plus 1, Family unlimited)
-      x-lifa-fr: [FR-SIM-002]
+      x-lifa-fr: [FR-SIM-002, FR-SIM-005]
       x-lifa-entitlement: sim.max_scenarios
       requestBody:
         required: true
@@ -76,7 +76,7 @@ paths:
       operationId: updateScenario
       tags: [Simulation]
       summary: Replace the scenario's assumptions
-      x-lifa-fr: [FR-SIM-002]
+      x-lifa-fr: [FR-SIM-002, FR-SIM-005]
       requestBody:
         required: true
         content:

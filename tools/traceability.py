@@ -22,27 +22,34 @@ SPECS = {
 }
 OUT = ROOT / "docs/architecture/09-traceability.md"
 
-# Release A scope, kept in sync with 01-scope.md (R1 + R2; FR-ONB-008 waived by D-013).
+# Release A scope, kept in sync with 01-scope.md (whole FRS, D-026; FR-ONB-008 waived by D-013).
 SCOPE = {
-    "ONB": [1, 2, 3, 4, 5, 6, 7, 9, 11],
+    "ONB": [1, 2, 3, 4, 5, 6, 7, 9, 10, 11],
     "SCR": list(range(1, 10)),
-    "WIL": list(range(1, 15)) + [17, 18],
-    "AST": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    "FAM": [1, 2, 3, 4, 5, 6, 8],
+    "WIL": list(range(1, 19)),
+    "AST": list(range(1, 12)),
+    "FAM": list(range(1, 9)),
     "VLT": list(range(1, 12)),
-    "SIM": [1, 2, 3, 6],
-    "LIQ": [1, 2, 3],
+    "SIM": list(range(1, 7)),
+    "LIQ": [1, 2, 3, 4],
     "PRM": list(range(1, 8)),
     "DMS": list(range(1, 8)),
+    "DIG": [1, 2, 3, 4],
     "EMG": [1, 2, 3],
-    "WAL": [1, 2, 3],
-    "SUB": list(range(1, 8)),
-    "NTF": [1, 2, 3, 4, 6],
+    "TRS": [1, 2, 3],
+    "ACT": list(range(1, 9)),
+    "EXE": list(range(1, 14)),
+    "WAL": [1, 2, 3, 4],
+    "MKT": list(range(1, 9)),
+    "SUB": list(range(1, 9)),
+    "AI": list(range(1, 7)),
+    "NTF": list(range(1, 7)),
 }
 
 MODULE = {
     "ONB": "identity", "SCR": "score", "WIL": "will (+docgen)", "AST": "estate", "FAM": "estate",
-    "VLT": "vault", "SIM": "simulation", "LIQ": "simulation", "PRM": "policy", "DMS": "lifecycle",
+    "VLT": "vault", "SIM": "simulation", "LIQ": "simulation", "PRM": "policy", "DMS": "lifecycle", "DIG": "digital", "TRS": "trust", "ACT": "lifecycle",
+    "EXE": "executor", "MKT": "marketplace", "AI": "ai",
     "EMG": "emergency", "WAL": "wallet", "SUB": "entitlement, billing", "NTF": "notification",
 }
 
@@ -63,12 +70,22 @@ NON_API = {
     "FR-NTF-004": "Notification dispatcher: generic push titles only",
     "FR-NTF-006": "Invitation templates without estate details",
     "FR-ONB-011": "Hourly job: deletion after 30 days and crypto-shred",
+    "FR-AST-011": "AccountAggregatorProvider interface only, until a provider is contracted (D-035)",
+    "FR-ACT-004": "Notice timer: 72-hour 'Is this a mistake?' to every owner channel",
+    "FR-ACT-005": "activation.completed: freeze estate, evaluate every release rule, notify recipients",
+    "FR-ACT-006": "activation.completed consumer: executor workspace (paid plan) or Executor Pack offer",
+    "FR-EXE-004": "Daily job: deadline reminders",
+    "FR-EXE-011": "Daily job: 5-year retention and deletion",
+    "FR-MKT-002": "Daily job: annual re-verification",
+    "FR-NTF-005": "activation.completed consumer: marketing suppression for the deceased's contacts and estate-file members",
+    "FR-AI-005": "Redaction API in lifa-core; no-retention provider contract (A10)",
 }
 
 ACCEPTANCE = {
     "FR-WIL-003": "AT-WIL-01", "FR-WIL-008": "AT-WIL-02", "FR-FAM-004": "AT-FAM-01",
-    "FR-DMS-005": "AT-DMS-01", "FR-DMS-006": "AT-ACT-01", "FR-PRM-006": "AT-PRM-01",
-    "FR-SUB-004": "AT-SUB-01", "FR-NTF-004": "AT-NTF-01",
+    "FR-DMS-005": "AT-DMS-01", "FR-DMS-006": "AT-ACT-01", "FR-ACT-001": "AT-ACT-01", "FR-PRM-006": "AT-PRM-01",
+    "FR-SUB-004": "AT-SUB-01", "FR-NTF-004": "AT-NTF-01", "FR-ACT-003": "red-team (13.2)",
+    "FR-AI-003": "300-question eval (13.2)",
 }
 
 METHODS = {"get", "put", "post", "patch", "delete"}
@@ -112,7 +129,7 @@ def main():
         "CI runs it with `--check`, which fails if a Release A FR has neither an operation nor a non-API realisation.",
         "UI tests per platform (XCUITest, Compose UI, ArkUI, Playwright) are added per screen in step 4.",
         "",
-        f"In-scope FRs: **{len(rows)}**. Untraced: **{len(missing)}**{(' (' + ', '.join(missing) + ')') if missing else ''}.",
+        f"In-scope FRs: **{len(rows)}** of the FRS's 155 (FR-ONB-008 waived, D-013). Untraced: **{len(missing)}**{(' (' + ', '.join(missing) + ')') if missing else ''}.",
         "",
         "| FR | Module | API operations | Non-API realisation | Tests |",
         "|---|---|---|---|---|",

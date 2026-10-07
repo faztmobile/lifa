@@ -46,20 +46,20 @@ a rule, metadata listing, deletion and crypto-shred, back-office support.
 | V-I3 | Information disclosure | Trusted person sees more than intended | ABAC deny by default (FR-PRM-001); denied reads return 404; revocations reach caches within 60 s (FR-PRM-006, AT-PRM-01); exhaustive policy decision table tests | Property-based tests on the policy function; AT-PRM-01 |
 | V-I4 | Information disclosure | Lock screen, push or OS previews leak content | Generic push titles only (FR-NTF-004, AT-NTF-01); widget is opt-in and limited to selected fields (D-017); app-switcher snapshot is blurred | AT-NTF-01 on each platform |
 | V-I5 | Information disclosure | Logs and telemetry capture content or IDs | Structured logging with an allow-list of fields; redaction processor; Application Insights PII masking; secret detector never logs matches (06 §6.6) | Log-scanning test in CI (seeded canary values must never appear) |
-| V-I6 | Information disclosure | Owner stores seed phrases or passwords, which Lifa then holds | FR-VLT-011 detector holds the upload and warns; education copy; digital legacy holds no credentials (R3) | Detector unit tests (BIP-39, xprv, PEM) |
+| V-I6 | Information disclosure | Owner stores seed phrases or passwords, which Lifa then holds | FR-VLT-011 detector holds the upload and warns; education copy; digital legacy holds no credentials (FR-DIG-002) | Detector unit tests (BIP-39, xprv, PEM) |
 | V-I7 | Information disclosure | Local cache on a lost device | SQLCipher (or platform equivalent) keyed by a hardware key that needs user authentication; document bytes in memory only; remote device revoke | Device test: cache file is unreadable without unlock |
 | V-D1 | Denial of service | Upload floods exhaust storage or the scanner | Quotas per tier (FR-VLT-003), per-user upload rate limit at APIM, KEDA scaling for scanners, upload concurrency limits | Load test |
 | V-E1 | Elevation of privilege | IDOR across estates through document IDs | Every request evaluated by policy with `(subject, estate, item)`; IDs are random UUIDs; no listing across estates | Automated IDOR suite (two users, every route) |
 | V-K1 | Key compromise | Unwrapped DEK or field key held in memory leaks | Keys live in memory ≤ 5 min, are zeroised after use where the JVM allows, are never serialised; no heap dumps in production; pool-B nodes are confidential VMs where available | Code review checklist; heap-dump setting audited |
 | V-K2 | Key compromise | Bulk unwrap by a compromised pool-B workload | HSM rate limits and Sentinel anomaly rule on unwrap volume per minute; unwrap requests carry the owner ID and are audited | Alert rule test |
-| V-K3 | Key management | Per-owner KEK count or cost limits in Managed HSM (OPEN_QUESTIONS A8) | If limits block one HSM key per owner: HSM root key → per-owner KEK stored *wrapped* in a dedicated `pg-b` table, kept out of long-lived backups (≤ 35 days), so crypto-shred is complete once backups age out | Decide before step 3 |
+| V-K3 | Key management | Per-owner KEK count or cost limits in Managed HSM | Closed: one HSM key per owner confirmed at target scale (D-028) | — |
 
 ## 3. Dead man's switch and activation
 
-Release A ships the switch, verifier reports and case review (FR-DMS). Activation (FR-ACT, R3) is designed here so
-that Release A data and states are correct, but **no code path in Release A changes the estate state to
-`activated` or releases death or incapacity items** (D-023). A static check fails the build if any module other
-than `lifecycle` writes `estate.state`, and `lifecycle` contains no `activate()` implementation in Release A.
+Release A now builds the switch, verifier reports, case review **and activation** (D-027). Activation stays
+switched off in production (`release.activation`) until the FRS 13.2 red-team exercise of false activation fails to
+activate (D-026). Only the `lifecycle` DB role can write `estate.state` (05 §5.4), and an ArchUnit rule stops any
+other module calling the transition API.
 
 ```mermaid
 stateDiagram-v2
@@ -74,16 +74,16 @@ stateDiagram-v2
   CaseOpen --> Living: owner login (cancels, shows reporters)
   CaseOpen --> UnderReview: evidence complete (Family: 2 verifiers or certificate)
   UnderReview --> Living: owner login, or rejected
-  UnderReview --> Notice72h: four-eyes approve (R3)
+  UnderReview --> Notice72h: four-eyes approve
   Notice72h --> Living: owner login
-  Notice72h --> Activated: 72 h elapsed or documented Compliance waiver (R3)
+  Notice72h --> Activated: 72 h elapsed, or documented Compliance waiver
   Activated --> [*]
 ```
 
 | ID | STRIDE | Threat | Controls | Verification |
 |---|---|---|---|---|
-| A-S1 | Spoofing | Relative (A1) reports a false death to gain access | The switch never declares death (FRS 5.4); Family needs 2 verifiers or a certificate (FR-DMS-005, AT-DMS-01); R3 adds documentary evidence, a requester-matches-role check (FR-ACT-002), four-eyes review (FR-ACT-003) and a 72-hour notice (FR-ACT-004); **any owner login cancels** (FR-DMS-006, AT-ACT-01) | AT-DMS-01, AT-ACT-01; R3 red-team gate (FRS 13.2) |
-| A-S2 | Spoofing | Forged death certificate | R3: checklist includes Home Affairs verification through the ID-verification vendor (B6) where available; certificate hash and metadata kept; Compliance escalation for doubtful cases | R3 checklist review |
+| A-S1 | Spoofing | Relative (A1) reports a false death to gain access | The switch never declares death (FRS 5.4); Family needs 2 verifiers or a certificate (FR-DMS-005, AT-DMS-01); activation needs documentary evidence, a requester-matches-role check (FR-ACT-002), four-eyes review (FR-ACT-003) and a 72-hour notice to every owner channel (FR-ACT-004); **any owner login cancels** (FR-DMS-006, AT-ACT-01) | AT-DMS-01, AT-ACT-01; R3 red-team gate (FRS 13.2) |
+| A-S2 | Spoofing | Forged death certificate | Review checklist includes Home Affairs verification through the ID-verification vendor (B6) where available; certificate hash and metadata kept; Compliance escalation for doubtful cases | Checklist review; red-team gate |
 | A-S3 | Spoofing | Verifier account taken over | Verifiers authenticate and step up like any user; verifier reports from new or reduced-trust devices are flagged for review | Integration test |
 | A-T1 | Tampering | Insider approves their own case or alters evidence | Four-eyes with two distinct reviewers enforced in the database (`case_decisions` unique reviewer per case and a check that reviewer ≠ opener); evidence in an immutable-policy container; every step audited (FR-ACT-008) | DB constraint tests |
 | A-T2 | Tampering | Check-in messages suppressed (SIM swap, email rules) so the switch escalates | Every channel is attempted (FR-DMS-003); delivery receipts monitored, and failed check-in delivery alerts operations (NFR-OBS-001); any authenticated session counts as a check-in (FR-DMS-002) | DMS end-to-end test incl. SIM-swap case (FRS 13.2) |
@@ -91,10 +91,40 @@ stateDiagram-v2
 | A-I1 | Information disclosure | Verifier messages reveal estate details | Verifier requests carry only the owner's first name and the question (FR-DMS-003); no links to estate data; signed, expiring links (FRS 9.3) | Template snapshot tests |
 | A-I2 | Information disclosure | Invitation scraping | Signed single-use tokens, short expiry, rate-limited lookup, redacted public view (FR-NTF-006) | Fuzz test on the invitation endpoint |
 | A-D1 | Denial of service | A traveller misses check-ins and triggers escalation | Pause for up to 180 days (FR-DMS-007); grace period of 7–30 days; reminders on every channel | DMS travel-pause case (FRS 13.2) |
-| A-E1 | Elevation of privilege | Release-rule evaluation bug releases items while the estate is still living | Death and incapacity rules marked `effective_from_release = R3` and never evaluated; the policy function requires `estate.state = activated` for those types; property tests over all rule × state pairs | Exhaustive decision-table test |
+| A-E1 | Elevation of privilege | Release-rule evaluation bug releases items while the estate is still living | The policy function requires `estate.state = activated` for death rules (and an incapacity activation for incapacity rules, FR-ACT-007); death+executor-approval rules also need the executor's recorded approval; property tests over all rule × state pairs | Exhaustive decision-table test |
+| A-E3 | Elevation of privilege | Waiver of the 72-hour notice abused | Waiver only by the `compliance_officer` role, with a documented reason (FR-ACT-004); Sentinel alert on every waiver; owner channels still notified | Role test; alert rule test |
+| A-I3 | Information disclosure | Staff browse evidence or estate content during review | Evidence access needs a second staff approval and expires after 30 minutes (back-office spec); owner content is never shown to staff | DB constraint and API tests |
 | A-E2 | Elevation of privilege | Coercer (A2) forces the owner to change verifiers or disarm the switch | Step-up on settings changes; change notification to the previous verifiers ("settings changed", no details); history visible to the executor after activation (FRS 9.3) | Integration test |
 
-## 4. Cross-cutting
+## 4. Executor workspace
+
+| ID | Threat | Controls |
+|---|---|---|
+| E-1 | Executor sees more than released | The estate file is built only from items released to the executor by rule (FR-EXE-001) plus the inventory snapshot; documents are still served through policy |
+| E-2 | A co-executor, attorney or agent exceeds their role | Member scopes are enforced by policy; inviting needs step-up; removal is immediate (FR-EXE-009, FR-PRM-006) |
+| E-3 | Lifa appears to act for the executor (legal risk, FR-EXE-013) | No outbound channel to institutions exists in code; letters are generated as PDFs for the executor to send; every screen and response carries the executor-acts-alone disclosure |
+| E-4 | Estate file kept too long or deleted too early | Retention job with documented extensions (FR-EXE-011); deletion audited |
+
+## 5. Marketplace
+
+| ID | Threat | Controls |
+|---|---|---|
+| M-1 | Fake or unlicensed professional listed | Registration evidence checked by Operations against the LPC, FSCA or body register before going live, re-verified yearly (FR-MKT-002); advisers and insurers only if FSP-licensed (FR-MKT-007) |
+| M-2 | Professional over-reaches on shared data | Case bundles are read-only, item-scoped, time-boxed policy grants; the owner is notified on each access; revocable at once |
+| M-3 | Lifa holds client funds, or takes a fee share (regulatory) | Split payments settle to the professional's subaccount (B8); Lifa revenue is only the flat listing subscription; no commission code path |
+| M-4 | Review manipulation, including pay-to-rank | Reviews only from completed bookings; moderation; ratings computed with no input from the listing tier (FR-MKT-008) |
+
+## 6. AI adviser
+
+| ID | Threat | Controls |
+|---|---|---|
+| I-1 | Plan data leaks to the model provider | Consent-gated (FR-AI-002); a redaction API removes ID and account numbers and names beyond first names (FR-AI-005); no-training, no-retention contract under POPIA s72 (NFR-PRV-001, A10); pool C egress only to the provider |
+| I-2 | Prompt injection through user content | Uploaded-document text is never sent to the model; user questions are wrapped as data; retrieval only from the curated knowledge base (FRS 9.3) |
+| I-3 | Answer amounts to legal, tax or product advice | Guardrail classifier on every answer part (FR-AI-003); blocked parts become "see a professional"; 300-question evaluation gate (FRS 13.2) |
+| I-4 | Harm to a bereaved or distressed user | Crisis-language detection before the model; support resources, no product prompts (FR-AI-006) |
+| I-5 | Quota abuse or cost blow-out | Per-user monthly quotas (FR-AI-004), per-request token caps, APIM rate limits |
+
+## 7. Cross-cutting
 
 | ID | Threat | Controls |
 |---|---|---|
@@ -103,11 +133,12 @@ stateDiagram-v2
 | T-X3 | Mobile app repackaging | Play Integrity, App Attest, HMS Safety Detect and HarmonyOS attestation checked server-side at device registration and periodically; reduced trust on failure |
 | T-X4 | Back-office account compromise | Workforce tenant with phishing-resistant MFA (FIDO2), PIM time-boxed roles, no content routes, session recording, Sentinel UEBA |
 
-## 5. Residual risks to accept or decide
+## 8. Residual risks to accept or decide
 
 | Risk | Owner decision needed |
 |---|---|
-| R3 activation controls are designed but unproven until the red-team gate | Accepted by phasing (D-023, OPEN_QUESTIONS A7) |
-| HSM per-owner key scale (V-K3) | OPEN_QUESTIONS A8 |
+| Activation controls unproven until the red-team gate | Accepted: built now, switched on only after the gate (D-026, D-027) |
+| LLM provider and transfer agreement not chosen | OPEN_QUESTIONS A10; `release.ai_adviser` stays off |
+| Marketplace payment model needs Paystack and legal confirmation | OPEN_QUESTIONS B8 |
 | An owner on a reduced-trust device cannot use the vault | Accepted: graceful degradation (06 §6.3) |
 | SIM-swap checks depend on per-network API coverage | OPEN_QUESTIONS B2 |
