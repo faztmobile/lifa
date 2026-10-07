@@ -1,5 +1,6 @@
 name: ios
 on:
+  workflow_dispatch:
   pull_request:
     paths: ['clients/ios/**', 'design/**', '.github/workflows/ios.yml']
   push:
@@ -28,6 +29,15 @@ jobs:
         working-directory: clients/ios/LifaDesign
       - name: Gallery XCUITests (accessibility audit, dark, AX-XXXL)
         run: xcodebuild test -project Lifa.xcodeproj -scheme Lifa -destination 'platform=iOS Simulator,name=iPhone 16' -resultBundlePath "$RUNNER_TEMP/ui.xcresult"
+      - name: Export screenshots from the result bundle
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-screens"
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/ui.xcresult" --output-path "$RUNNER_TEMP/ios-screens" || true
+          ls "$RUNNER_TEMP/ios-screens" | head -50
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ios-gallery-screens, path: '${{ runner.temp }}/ios-screens' }
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: ios-ui-results, path: '${{ runner.temp }}/ui.xcresult' }

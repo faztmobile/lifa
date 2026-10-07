@@ -2,6 +2,7 @@
 # authoring environment (OPEN_QUESTIONS E, 02-monorepo).
 name: android
 on:
+  workflow_dispatch:
   pull_request:
     paths: ['clients/android/**', 'design/**', 'api/**', '.github/workflows/android.yml']
   push:

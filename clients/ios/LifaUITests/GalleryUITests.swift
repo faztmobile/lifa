@@ -9,8 +9,10 @@ final class GalleryUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         XCTAssertTrue(app.staticTexts["Lifa design system"].waitForExistence(timeout: 10))
+        capturePages(app, "light")
+        app.terminate()
+        app.launch()
         try app.performAccessibilityAudit() // contrast, hit regions, Dynamic Type, labels (iOS 17+)
-        attachScreenshot(app, "gallery-light")
     }
 
     func testDarkModeAndLargestText() throws {
@@ -18,8 +20,18 @@ final class GalleryUITests: XCTestCase {
         app.launchArguments += ["-LifaForceDark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Lifa design system"].waitForExistence(timeout: 10))
+        capturePages(app, "dark-axxxl")
+        app.terminate()
+        app.launch()
         try app.performAccessibilityAudit(for: [.dynamicType, .textClipped, .contrast])
-        attachScreenshot(app, "gallery-dark-axxxl")
+    }
+
+    func testDarkModeScreenshots() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-LifaForceDark"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Lifa design system"].waitForExistence(timeout: 10))
+        capturePages(app, "dark")
     }
 
     func testToggleRowSwitchesOn() {
@@ -30,6 +42,14 @@ final class GalleryUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.tap()
         XCTAssertEqual(toggle.value as? String, "1")
+    }
+
+    /// Screenshots of the whole gallery, one per screen height.
+    private func capturePages(_ app: XCUIApplication, _ name: String, pages: Int = 10) {
+        for i in 0..<pages {
+            attachScreenshot(app, "gallery-\(name)-\(String(format: "%02d", i))")
+            app.swipeUp(velocity: .slow)
+        }
     }
 
     private func attachScreenshot(_ app: XCUIApplication, _ name: String) {

@@ -62,7 +62,9 @@ class GalleryTest {
             compose.onAllNodesWithClick().forEach { node ->
                 val b = node.touchBoundsInRoot
                 if (b.width < minPx || b.height < minPx) {
-                    tooSmall += (node.config.getOrNull(SemanticsProperties.Text)?.joinToString() ?: node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString() ?: "node ${node.id}") +
+                    tooSmall += (node.config.getOrElseNullable(SemanticsProperties.Text) { null }?.joinToString()
+                        ?: node.config.getOrElseNullable(SemanticsProperties.ContentDescription) { null }?.joinToString()
+                        ?: "node ${node.id}") +
                         " ${b.width.toInt()}x${b.height.toInt()}px"
                 }
             }
