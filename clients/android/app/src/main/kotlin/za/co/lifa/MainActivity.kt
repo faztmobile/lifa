@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Box(Modifier.safeDrawingPadding()) {
-                LifaGallery(systemDark = isSystemInDarkTheme())
+                LifaGallery(systemDark = isSystemInDarkTheme(), platform = "Android · ${Distribution.STORE}")
             }
         }
     }

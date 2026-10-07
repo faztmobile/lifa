@@ -84,6 +84,7 @@ fun LifaGallery(
     systemDark: Boolean,
     initialTheme: GalleryTheme = GalleryTheme.System,
     initialFontScale: Float = 1f,
+    platform: String = "Android",
 ) {
     var theme by rememberSaveable { mutableStateOf(initialTheme) }
     var fontScale by rememberSaveable { mutableStateOf(initialFontScale) }
@@ -91,14 +92,14 @@ fun LifaGallery(
     val density = LocalDensity.current
     CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
         LifaTheme(darkTheme = dark) {
-            GalleryContent(theme, { theme = it }, fontScale, { fontScale = it })
+            GalleryContent(platform, theme, { theme = it }, fontScale, { fontScale = it })
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GalleryContent(theme: GalleryTheme, onTheme: (GalleryTheme) -> Unit, fontScale: Float, onFontScale: (Float) -> Unit) {
+private fun GalleryContent(platform: String, theme: GalleryTheme, onTheme: (GalleryTheme) -> Unit, fontScale: Float, onFontScale: (Float) -> Unit) {
     val c = LifaTheme.colors
     var regime by remember { mutableStateOf("in_community") }
     var interval by remember { mutableStateOf("30") }
@@ -117,7 +118,7 @@ private fun GalleryContent(theme: GalleryTheme, onTheme: (GalleryTheme) -> Unit,
         item {
             Column(verticalArrangement = Arrangement.spacedBy(LifaSpace.space3)) {
                 Text("Lifa design system", style = LifaTheme.type.title1, color = c.text, modifier = Modifier.semantics { heading() })
-                Text("Component gallery · Android", style = LifaTheme.type.caption, color = c.textMuted)
+                Text("Component gallery · $platform", style = LifaTheme.type.caption, color = c.textMuted)
                 SegmentedControl("Theme", GalleryTheme.entries.map { ChoiceOption(it.name, it.name) }, theme.name) { onTheme(GalleryTheme.valueOf(it)) }
                 SegmentedControl("Font scale", listOf(1f, 1.5f, 2f).map { ChoiceOption(it.toString(), "${(it * 100).toInt()}%") }, fontScale.toString()) { onFontScale(it.toFloat()) }
             }

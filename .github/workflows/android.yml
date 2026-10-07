@@ -26,26 +26,30 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
       - name: Gallery screenshots (Roborazzi, light / dark / 200% font)
-        run: ./gradlew :core:design:testDebugUnitTest -Proborazzi.test.record=true --tests 'za.co.lifa.design.GalleryTest.screenshot*'
+        run: |
+          ./gradlew :core:design:testDebugUnitTest -Proborazzi.test.record=true --tests 'za.co.lifa.design.GalleryTest.screenshot*'
+          ./gradlew :app:testGmsDebugUnitTest :app:testHmsDebugUnitTest -Proborazzi.test.record=true
       - name: Publish screenshots to this branch (manual runs only)
         if: always() && github.event_name == 'workflow_dispatch'
         working-directory: .
         run: |
           set -e
-          DEST=docs/design/screens/android
-          mkdir -p "$DEST" && rm -f "$DEST"/*.png
-          cp clients/android/core/design/build/outputs/roborazzi/*.png "$DEST"/
+          S=docs/design/screens
+          for d in android android-gms android-hms; do mkdir -p "$S/$d" && rm -f "$S/$d"/*.png; done
+          cp clients/android/core/design/build/outputs/roborazzi/*.png "$S/android"/
+          cp clients/android/app/build/outputs/roborazzi/gms-*.png "$S/android-gms"/ || echo "no gms store shots"
+          cp clients/android/app/build/outputs/roborazzi/hms-*.png "$S/android-hms"/ || echo "no hms store shots"
           python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow==12.3.0
-          "$RUNNER_TEMP/venv/bin/python" -c "import glob,sys; from PIL import Image; [Image.open(f).reduce(2).save(f, optimize=True) for f in glob.glob(sys.argv[1] + '/*.png')]" "$DEST"
-          ls "$DEST" | head -40
+          "$RUNNER_TEMP/venv/bin/python" -c "import glob,sys; from PIL import Image; [Image.open(f).reduce(2).save(f, optimize=True) for f in glob.glob(sys.argv[1] + '/android*/*.png')]" "$S"
+          ls "$S"/android*
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$DEST"
+          git add "$S"/android*
           git commit -m "CI: Android gallery screenshots for ${GITHUB_SHA::7} [skip ci]" || exit 0
           for i in 1 2 3 4; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && exit 0; sleep $((i*5)); done
           exit 1
       - name: Unit and Compose UI tests (Robolectric)
-        run: ./gradlew :core:design:testDebugUnitTest
+        run: ./gradlew :core:design:testDebugUnitTest :app:testGmsDebugUnitTest :app:testHmsDebugUnitTest
       - name: Assemble both store flavours
         run: ./gradlew :app:assembleGmsDebug :app:assembleHmsDebug :app:lintGmsDebug
       - name: hms flavour has no Google services
@@ -58,3 +62,4 @@ jobs:
             clients/android/core/design/build/outputs/roborazzi
             clients/android/core/design/build/reports/tests
             clients/android/app/build/outputs/apk
+            clients/android/app/build/outputs/roborazzi
