@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Lifa" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/lifa_window_background</item>
+    </style>
+    <color name="lifa_window_background">#0F1A15</color>
+</resources>

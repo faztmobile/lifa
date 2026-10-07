@@ -265,6 +265,70 @@ ${typeNames.map((k) => `.lifa-type-${k} { font: var(--lifa-type-${k}); letter-sp
   emit('clients/web/src/design/generated/tokens.ts', `// ${HEADER}\n// Raw values for code that cannot read CSS variables (for example canvas charts).\nexport const lifaColors = ${JSON.stringify({ light: Object.fromEntries(colorNames.map((k) => [camel(k), v(t.color.light[k])])), dark: Object.fromEntries(colorNames.map((k) => [camel(k), v(t.color.dark[k])])) }, null, 2)} as const;\n`);
 }
 
+// ---------- Icons (Lucide subset, design/icons/icons.json) ----------
+{
+  const { icons } = JSON.parse(readFileSync(join(ROOT, 'design/icons/icons.json'), 'utf8'));
+  const n = (x) => Number(x);
+  // Convert every shape to SVG path data so one format feeds VectorDrawable, SVG and ArkUI Path.
+  const toPath = ([tag, a]) => {
+    if (tag === 'path') return a.d;
+    if (tag === 'line') return `M${a.x1} ${a.y1}L${a.x2} ${a.y2}`;
+    if (tag === 'circle') { const [cx, cy, r] = [n(a.cx), n(a.cy), n(a.r)]; return `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`; }
+    if (tag === 'rect') {
+      const [x, y, w, h] = [n(a.x), n(a.y), n(a.width), n(a.height)];
+      const r = Math.min(n(a.rx ?? a.ry ?? 0), w / 2, h / 2);
+      if (!r) return `M${x} ${y}h${w}v${h}h${-w}Z`;
+      return `M${x + r} ${y}h${w - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 ${-r} ${r}h${-(w - 2 * r)}a${r} ${r} 0 0 1 ${-r} ${-r}v${-(h - 2 * r)}a${r} ${r} 0 0 1 ${r} ${-r}Z`;
+    }
+    throw new Error(`unsupported icon shape ${tag}`);
+  };
+  const names = Object.keys(icons);
+  const paths = Object.fromEntries(names.map((k) => [k, icons[k].map(toPath)]));
+  const res = (k) => `lifa_ic_${snake(k)}`;
+  for (const k of names) {
+    emit(`clients/android/core/design/src/main/res/drawable/${res(k)}.xml`, `<?xml version="1.0" encoding="utf-8"?>
+<!-- ${HEADER} Lucide "${k}" (ISC). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+${paths[k].map((d) => `    <path android:pathData="${d}" android:fillColor="#00000000" android:strokeColor="#FF000000"
+        android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" />`).join('\n')}
+</vector>
+`);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[k].map((d) => `<path d="${d}"/>`).join('')}</svg>\n`;
+    const set = `clients/ios/LifaDesign/Sources/LifaDesign/Resources/Icons.xcassets/${camel(k)}.imageset`;
+    emit(`${set}/${camel(k)}.svg`, svg);
+    emit(`${set}/Contents.json`, JSON.stringify({ images: [{ filename: `${camel(k)}.svg`, idiom: 'universal' }], info: { author: 'lifa-build', version: 1 }, properties: { 'preserves-vector-representation': true, 'template-rendering-intent': 'template' } }, null, 2) + '\n');
+  }
+  emit('clients/ios/LifaDesign/Sources/LifaDesign/Resources/Icons.xcassets/Contents.json', JSON.stringify({ info: { author: 'lifa-build', version: 1 } }, null, 2) + '\n');
+  emit('clients/android/core/design/src/main/kotlin/za/co/lifa/design/generated/LifaIcons.kt', `// ${HEADER}
+package za.co.lifa.design.generated
+
+import androidx.annotation.DrawableRes
+import za.co.lifa.design.R
+
+/** Lucide icons (ISC) shared by all clients. Use with LifaIcon(...). */
+enum class LifaIcons(@DrawableRes val res: Int) {
+${names.map((k) => `    ${camel(k).replace(/^./, (c) => c.toUpperCase())}(R.drawable.${res(k)}),`).join('\n')}
+}
+`);
+  emit('clients/ios/LifaDesign/Sources/LifaDesign/Generated/LifaIcons.swift', `// ${HEADER}
+import SwiftUI
+
+/// Lucide icons (ISC) shared by all clients, as template images from Icons.xcassets.
+public enum LifaIcon: String, CaseIterable, Sendable {
+${names.map((k) => `    case ${camel(k)}`).join('\n')}
+
+    public var image: Image { Image(rawValue, bundle: .module) }
+}
+`);
+  emit('clients/harmony/design/src/main/ets/generated/LifaIcons.ets', `// ${HEADER}
+// Lucide icons (ISC) as SVG path data, drawn by LifaIcon with Shape/Path so stroke colour follows the theme.
+export const LIFA_ICONS: Record<string, string[]> = {
+${names.map((k) => `  '${k}': [${paths[k].map((d) => `'${d}'`).join(', ')}],`).join('\n')}
+};
+`);
+}
+
 // ---------- write / check ----------
 let drift = 0;
 for (const o of outputs) {

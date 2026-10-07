@@ -1,0 +1,41 @@
+# XcodeGen spec (pinned in CI). Generates Lifa.xcodeproj on macOS runners: `xcodegen generate`.
+name: Lifa
+options:
+  bundleIdPrefix: za.co.lifa
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  LifaDesign:
+    path: LifaDesign
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+targets:
+  Lifa:
+    type: application
+    platform: iOS
+    sources: [LifaApp]
+    dependencies:
+      - package: LifaDesign
+    info:
+      path: LifaApp/Info.plist
+      properties:
+        CFBundleDisplayName: Lifa
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+  LifaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [LifaUITests]
+    dependencies:
+      - target: Lifa
+schemes:
+  Lifa:
+    build:
+      targets:
+        Lifa: all
+        LifaUITests: [test]
+    test:
+      targets: [LifaUITests]

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background matches the token background (cream) so there is no white flash before Compose draws. -->
+    <style name="Theme.Lifa" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/lifa_window_background</item>
+    </style>
+    <color name="lifa_window_background">#F6F3EC</color>
+</resources>
