@@ -3,7 +3,7 @@
 # [VERIFY] agp, compose-bom and androidx.* live only on Google Maven, which this build environment cannot reach
 # (dl.google.com blocked). They are known-good releases; Dependabot raises them on the first CI run.
 [versions]
-agp = "8.13.0"
+agp = "9.4.1"
 kotlin = "2.4.20"
 compose-bom = "2025.09.00"
 activity-compose = "1.10.1"
