@@ -119,3 +119,12 @@ reports "Dynamic Type font sizes are partially unsupported" on a different eleme
 then a segment label). Screenshots show no truncation, and the same audit passes when the app launches at
 AX-XXXL. The default-size audit therefore runs every check except Dynamic Type. To revisit on a device with
 Accessibility Inspector before release.
+
+## Prototype screens
+
+`clients/web/prototypes.html` renders one prototype screen per mobile journey (sign-up, home and score, will,
+assets, vault step-up, emergency card, check-in, activation notice, executor checklist, plans), built only from the
+design-system components and tokens. They are references for step 4, not the shipped apps. Regenerate the PNGs in
+`docs/design/screens/prototypes/` with `npx vite --port 4180 --strictPort` and `node scripts/capture-prototypes.mjs`
+(fails if any screen overflows 390 × 844). People and figures are fictional; plan prices are not shown because they
+come from the store catalogue.
