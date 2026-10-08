@@ -8,6 +8,9 @@ public struct LifaTextField: View {
     let keyboard: UIKeyboardType; let compact: Bool; let showLabel: Bool
     @FocusState private var focused: Bool
 
+    /// Compact fields (share %) widen with the text size so the value is never truncated.
+    @ScaledMetric(relativeTo: .body) private var compactWidth: CGFloat = 96
+
     public init(_ label: String, text: Binding<String>, hint: String? = nil, hintPositive: Bool = false, error: String? = nil,
                 suffix: String? = nil, keyboard: UIKeyboardType = .default, compact: Bool = false, showLabel: Bool = true) {
         self.label = label; self._text = text; self.hint = hint; self.hintPositive = hintPositive; self.error = error
@@ -29,7 +32,7 @@ public struct LifaTextField: View {
                 if let suffix { Text(suffix).lifaText(LifaTypography.body).foregroundStyle(LifaColor.textMuted).accessibilityHidden(true) }
             }
             .padding(.horizontal, compact ? LifaSpace.space3 : LifaSpace.space4)
-            .frame(width: compact ? 96 : nil)
+            .frame(width: compact ? compactWidth : nil)
             .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? LifaSize.touchMin : LifaSize.inputHeight)
             .background(LifaColor.surface, in: RoundedRectangle(cornerRadius: LifaRadius.sm, style: .continuous))
             .overlay(
@@ -193,6 +196,7 @@ public struct LifaTab: Sendable, Hashable, Identifiable {
 /// Tab bar matching the reference screens. The app uses TabView with this styling in step 4; this view is for the gallery.
 public struct LifaTabBar: View {
     let tabs: [LifaTab]; @Binding var selection: String
+    @Environment(\.dynamicTypeSize) private var typeSize
     public init(_ tabs: [LifaTab], selection: Binding<String>) { self.tabs = tabs; self._selection = selection }
     public var body: some View {
         HStack(spacing: 0) {
@@ -201,13 +205,19 @@ public struct LifaTabBar: View {
                 Button { selection = t.key } label: {
                     VStack(spacing: 2) {
                         t.icon.view()
-                        Text(t.label).lifaText(LifaTypography.caption).fontWeight(selected ? .bold : .regular)
+                        // At accessibility sizes the bar shows icons only, like the system tab bar;
+                        // a long press shows the Large Content Viewer with the label.
+                        if !typeSize.isAccessibilitySize {
+                            Text(t.label).lifaText(LifaTypography.caption).fontWeight(selected ? .bold : .regular)
+                        }
                     }
                     .foregroundStyle(selected ? LifaColor.primary : LifaColor.textMuted)
                     .frame(maxWidth: .infinity, minHeight: LifaSize.tabBarHeight)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(t.label)
+                .accessibilityShowsLargeContentViewer { t.icon.view(); Text(t.label) }
                 .accessibilityAddTraits(selected ? [.isSelected] : [])
             }
         }

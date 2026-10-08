@@ -18,6 +18,9 @@ public struct LifaGalleryView: View {
     @State private var shares = ["SM": "50", "LM": "20", "KM": "20", "HC": "10"]
     @State private var fields = ["Contacts and executor": true, "Where my will is kept": true, "Children and guardian": true, "Funeral wishes": false]
 
+    /// Swatch column width grows with the text size, so token names do not break mid-word.
+    @ScaledMetric(relativeTo: .caption) private var swatchMinWidth: CGFloat = 140
+
     public init(theme: ThemeChoice = .system) { _theme = State(initialValue: theme) }
 
     private var total: Int { shares.values.reduce(0) { $0 + (Int($1) ?? 0) } }
@@ -31,7 +34,7 @@ public struct LifaGalleryView: View {
                 section("Colours") {
                     Text("Semantic tokens. Every text and control pairing is checked for WCAG contrast in both modes.")
                         .lifaText(LifaTypography.caption).foregroundStyle(LifaColor.textMuted)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), alignment: .leading)], alignment: .leading, spacing: LifaSpace.space3) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: swatchMinWidth), alignment: .leading)], alignment: .leading, spacing: LifaSpace.space3) {
                         ForEach(swatches, id: \.0) { swatch in
                             HStack(spacing: LifaSpace.space2) {
                                 RoundedRectangle(cornerRadius: LifaRadius.sm).fill(swatch.1).frame(width: 32, height: 32)
@@ -59,12 +62,12 @@ public struct LifaGalleryView: View {
                 section("Buttons") {
                     LifaButton("Start my free will", fullWidth: true) {}
                     LifaButton("Go to my plan", variant: .secondary, fullWidth: true) {}
-                    HStack(spacing: LifaSpace.space3) {
+                    LifaAdaptiveStack {
                         LifaButton("Back", variant: .secondary) {}
                         LifaButton("Next: specific gifts", fullWidth: true) {}
                     }
                     LifaButton("Add a testamentary trust clause", variant: .text) {}
-                    HStack(spacing: LifaSpace.space3) {
+                    LifaAdaptiveStack {
                         LifaButton("Close account", variant: .destructive, compact: true) {}
                         LifaButton("Saving", compact: true, loading: true) {}
                         LifaButton("Disabled", compact: true) {}.disabled(true)
@@ -83,7 +86,7 @@ public struct LifaGalleryView: View {
                 section("Cards") {
                     LifaBanner("Monthly check-in is due", icon: .heart) { LifaButton("I’m still here", variant: .text) {} }
                     HeroScoreCard(score: 72, delta: "+28 since September", tiles: [HeroTile("Estimated net estate", "R8.92m"), HeroTile("Signed will", "Version 2")])
-                    HStack(spacing: LifaSpace.space3) {
+                    QuickActionGrid {
                         QuickActionTile(icon: .fileText, label: "Will") {}
                         QuickActionTile(icon: .house, label: "Assets") {}
                         QuickActionTile(icon: .chartLine, label: "Simulate") {}
@@ -112,7 +115,7 @@ public struct LifaGalleryView: View {
                             AllocationRow(initials: p.initials, tone: p.tone, name: p.name, detail: p.detail,
                                           value: Binding(get: { shares[p.initials] ?? "" }, set: { shares[p.initials] = $0 }))
                         }
-                        HStack(spacing: LifaSpace.space3) {
+                        LifaAdaptiveStack {
                             LifaProgressBar(value: Double(min(total, 100)), label: "Residue allocated")
                             Text("\(total)% allocated").lifaText(LifaTypography.label).fontWeight(.bold).foregroundStyle(LifaColor.leafText)
                         }
