@@ -92,14 +92,18 @@ public struct LifaButton: View {
 /// Home quick action (Will, Assets, Simulate, Card).
 public struct QuickActionTile: View {
     let icon: LifaIcon; let label: String; let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
     public init(icon: LifaIcon, label: String, action: @escaping () -> Void) { self.icon = icon; self.label = label; self.action = action }
     public var body: some View {
+        // Icon above the label; beside it, as a full-width row, at accessibility text sizes.
+        let ax = typeSize.isAccessibilitySize
+        let layout = ax ? AnyLayout(HStackLayout(spacing: LifaSpace.space3)) : AnyLayout(VStackLayout(spacing: LifaSpace.space2))
         Button(action: action) {
-            VStack(spacing: LifaSpace.space2) {
+            layout {
                 icon.view().foregroundStyle(LifaColor.primary)
-                Text(label).lifaText(LifaTypography.label).foregroundStyle(LifaColor.text).multilineTextAlignment(.center)
+                Text(label).lifaText(LifaTypography.label).foregroundStyle(LifaColor.text).multilineTextAlignment(ax ? .leading : .center)
             }
-            .frame(maxWidth: .infinity, minHeight: LifaSize.touchMin)
+            .frame(maxWidth: .infinity, minHeight: LifaSize.touchMin, alignment: ax ? .leading : .center)
             .padding(.vertical, LifaSpace.space4).padding(.horizontal, LifaSpace.space2)
             .background(LifaColor.surface, in: RoundedRectangle(cornerRadius: LifaRadius.md, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: LifaRadius.md, style: .continuous).strokeBorder(LifaColor.line, lineWidth: LifaSize.border))

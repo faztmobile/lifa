@@ -14,13 +14,13 @@ public struct LifaAdaptiveStack<Content: View>: View {
     }
 }
 
-/// Home quick actions: four across, two across at accessibility text sizes.
+/// Home quick actions: four across, one full-width row each at accessibility text sizes.
 public struct QuickActionGrid<Content: View>: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     let content: Content
     public init(@ViewBuilder content: () -> Content) { self.content = content() }
     public var body: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: LifaSpace.space3), count: typeSize.isAccessibilitySize ? 2 : 4)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: LifaSpace.space3), count: typeSize.isAccessibilitySize ? 1 : 4)
         LazyVGrid(columns: columns, spacing: LifaSpace.space3) { content }
     }
 }

@@ -18,9 +18,6 @@ public struct LifaGalleryView: View {
     @State private var shares = ["SM": "50", "LM": "20", "KM": "20", "HC": "10"]
     @State private var fields = ["Contacts and executor": true, "Where my will is kept": true, "Children and guardian": true, "Funeral wishes": false]
 
-    /// Swatch column width grows with the text size, so token names do not break mid-word.
-    @ScaledMetric(relativeTo: .caption) private var swatchMinWidth: CGFloat = 140
-
     public init(theme: ThemeChoice = .system) { _theme = State(initialValue: theme) }
 
     private var total: Int { shares.values.reduce(0) { $0 + (Int($1) ?? 0) } }
@@ -34,15 +31,7 @@ public struct LifaGalleryView: View {
                 section("Colours") {
                     Text("Semantic tokens. Every text and control pairing is checked for WCAG contrast in both modes.")
                         .lifaText(LifaTypography.caption).foregroundStyle(LifaColor.textMuted)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: swatchMinWidth), alignment: .leading)], alignment: .leading, spacing: LifaSpace.space3) {
-                        ForEach(swatches, id: \.0) { swatch in
-                            HStack(spacing: LifaSpace.space2) {
-                                RoundedRectangle(cornerRadius: LifaRadius.sm).fill(swatch.1).frame(width: 32, height: 32)
-                                    .overlay(RoundedRectangle(cornerRadius: LifaRadius.sm).strokeBorder(LifaColor.lineStrong))
-                                Text(swatch.0).lifaText(LifaTypography.caption).foregroundStyle(LifaColor.text)
-                            }
-                        }
-                    }
+                    SwatchGrid(swatches: swatches)
                 }
                 section("Typography") {
                     LifaCard {
@@ -209,5 +198,31 @@ private struct DynamicTypeOverride: ViewModifier {
     let size: DynamicTypeSize?
     func body(content: Content) -> some View {
         if let size { content.dynamicTypeSize(size) } else { content }
+    }
+}
+
+/// Colour swatches in two columns, one at accessibility text sizes. A plain Grid (not lazy) so rows
+/// re-measure when the text size changes while the screen is open.
+private struct SwatchGrid: View {
+    let swatches: [(String, Color)]
+    @Environment(\.dynamicTypeSize) private var typeSize
+    var body: some View {
+        let perRow = typeSize.isAccessibilitySize ? 1 : 2
+        let rows = stride(from: 0, to: swatches.count, by: perRow).map { Array(swatches[$0..<min($0 + perRow, swatches.count)]) }
+        Grid(alignment: .leading, horizontalSpacing: LifaSpace.space3, verticalSpacing: LifaSpace.space3) {
+            ForEach(rows.indices, id: \.self) { r in
+                GridRow {
+                    ForEach(rows[r], id: \.0) { swatch in
+                        HStack(spacing: LifaSpace.space2) {
+                            RoundedRectangle(cornerRadius: LifaRadius.sm).fill(swatch.1).frame(width: 32, height: 32)
+                                .overlay(RoundedRectangle(cornerRadius: LifaRadius.sm).strokeBorder(LifaColor.lineStrong))
+                            Text(swatch.0).lifaText(LifaTypography.caption).foregroundStyle(LifaColor.text)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
     }
 }
