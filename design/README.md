@@ -101,10 +101,21 @@ iOS Dynamic Type up to AX3; HarmonyOS follows the system font size).
 |---|---|---|---|
 | Tokens | ✓ | contrast 78/78; drift check; icon conversion pixel-identical to Lucide (24/24) | **Pass** |
 | Web | ✓ | Playwright + axe 16/16 (phone + desktop: WCAG 2.2 AA light/dark, reflow at 320 px and 200% text, focus visible, 44 px targets, radio keys, AT-WIL-01 text); Vitest 6/6 | **Pass** |
-| Android | ✗ — Google Maven (`dl.google.com`) blocked | Robolectric + Compose UI: 48 dp sweep, switch role, AT-WIL-01 text; Roborazzi light/dark/200%; format | **First run in CI** (`android.yml`) |
-| iOS | ✗ — no Xcode on Linux | Swift Testing (format, bundled fonts); XCUITest with `performAccessibilityAudit` in light, dark and AX-XXXL; switch toggles | **First run in CI** (`ios.yml`, macOS) |
+| Android | ✗ — Google Maven (`dl.google.com`) blocked; ✓ in CI | Robolectric + Compose UI: 48 dp sweep, switch role, AT-WIL-01 text; Roborazzi light/dark/200%; store screenshots of the real gms and hms apps; hms has no Google services; format | **Pass** in CI (`android.yml`) |
+| iOS | ✗ — no Xcode on Linux; ✓ in CI | Swift Testing (format, bundled fonts); XCUITest: full `performAccessibilityAudit` except Dynamic Type at default size, Dynamic Type + clipped text + contrast at AX-XXXL; screenshots light, dark, AX-XXXL; switch toggles | See note below (`ios.yml`, macOS) |
 | HarmonyOS | ✗ — no DevEco/SDK | Hypium + UiTest: launch, 48 vp button, switch toggles, format | **First run in CI** (self-hosted DevEco runner) |
 
 Tests run on the web found and fixed: a 52×32 switch target, inputs/grids that would not shrink at 200% text,
 segmented controls that would not wrap, and centred text buttons. The same fixes were applied in the native
 components (rows wrap, stacked fallbacks, 48 dp row targets).
+
+Native screenshots found and fixed (7–8 Oct 2026): the iOS gallery forced the default text size, so it ignored
+the system Dynamic Type setting; at AX-XXXL, button rows, quick actions, share fields, the tab bar and swatches
+broke words. They now stack or adapt at accessibility sizes (`LifaAdaptiveStack`, `QuickActionGrid`,
+`@ScaledMetric` field width, icon-only tab bar with the Large Content Viewer).
+
+**iOS audit note.** At the default size the Dynamic Type audit, which raises the text size while the app runs,
+reports "Dynamic Type font sizes are partially unsupported" on a different element each run (a swatch label,
+then a segment label). Screenshots show no truncation, and the same audit passes when the app launches at
+AX-XXXL. The default-size audit therefore runs every check except Dynamic Type. To revisit on a device with
+Accessibility Inspector before release.
