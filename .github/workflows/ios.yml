@@ -65,6 +65,9 @@ jobs:
         run: |
           set -e
           DEST=docs/design/screens/ios
+          # Never replace the published set with an empty or partial export (cancelled or crashed run).
+          n=$(ls "$RUNNER_TEMP"/ios-screens/gallery-*.png 2>/dev/null | wc -l)
+          if [ "$n" -lt 20 ]; then echo "Only $n screenshots exported; keeping the published set"; exit 0; fi
           mkdir -p "$DEST" && rm -f "$DEST"/*.png
           cp "$RUNNER_TEMP"/ios-screens/gallery-*.png "$DEST"/ 2>/dev/null || true; for f in "$DEST"/*.png; do [ -f "$f" ] && sips -Z 1280 "$f" >/dev/null; done
           ls "$DEST" | head -40

@@ -35,6 +35,8 @@ jobs:
         run: |
           set -e
           S=docs/design/screens
+          n=$(ls clients/android/core/design/build/outputs/roborazzi/*.png 2>/dev/null | wc -l)
+          if [ "$n" -lt 12 ]; then echo "Only $n screenshots recorded; keeping the published set"; exit 0; fi
           for d in android android-gms android-hms; do mkdir -p "$S/$d" && rm -f "$S/$d"/*.png; done
           cp clients/android/core/design/build/outputs/roborazzi/*.png "$S/android"/
           cp clients/android/app/build/outputs/roborazzi/gms-*.png "$S/android-gms"/ || echo "no gms store shots"
