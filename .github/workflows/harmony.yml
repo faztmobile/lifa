@@ -15,7 +15,7 @@ jobs:
   build-test:
     runs-on: [self-hosted, harmony-deveco]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: ohpm install
       - name: Build HAR and HAP (ArkTS strict mode)
         run: hvigorw assembleHap --mode module -p product=default -p buildMode=debug --no-daemon
