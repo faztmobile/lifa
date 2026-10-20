@@ -27,16 +27,21 @@ jobs:
           unzip -q xcodegen.zip -d "$RUNNER_TEMP/xcodegen"
           echo "$RUNNER_TEMP/xcodegen/xcodegen/bin" >> "$GITHUB_PATH"
       - run: xcodegen generate
+      - name: Pick an installed iPhone simulator (download the iOS platform if the image has none)
+        run: |
+          if ! xcrun simctl list devices available | grep -q iPhone; then xcodebuild -downloadPlatform iOS; fi
+          SIM=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; c=sorted((k, x['name'], x['udid']) for k, v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')); p=[t for t in c if t[1] in ('iPhone 16', 'iPhone 16 Pro', 'iPhone 17', 'iPhone 17 Pro')]; t=(p or c)[-1]; print(t[2]); print(t, file=sys.stderr)")
+          echo "SIM=$SIM" >> "$GITHUB_ENV"
       - name: LifaDesign package tests
-        run: xcodebuild test -scheme LifaDesign -destination 'platform=iOS Simulator,name=iPhone 16' -skipPackagePluginValidation
+        run: xcodebuild test -scheme LifaDesign -destination "platform=iOS Simulator,id=$SIM" -skipPackagePluginValidation
         working-directory: clients/ios/LifaDesign
       - name: Boot the simulator with a clean status bar (9:41, full battery)
         run: |
-          xcrun simctl boot "iPhone 16" || true
-          xcrun simctl bootstatus "iPhone 16" -b
-          xcrun simctl status_bar "iPhone 16" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+          xcrun simctl boot "$SIM" || true
+          xcrun simctl bootstatus "$SIM" -b
+          xcrun simctl status_bar "$SIM" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
       - name: Gallery XCUITests (accessibility audit, dark, AX-XXXL, demo screens)
-        run: xcodebuild test -project Lifa.xcodeproj -scheme Lifa -destination 'platform=iOS Simulator,name=iPhone 16' -resultBundlePath "$RUNNER_TEMP/ui.xcresult"
+        run: xcodebuild test -project Lifa.xcodeproj -scheme Lifa -destination "platform=iOS Simulator,id=$SIM" -resultBundlePath "$RUNNER_TEMP/ui.xcresult"
       - name: Export screenshots from the result bundle
         if: always()
         run: |

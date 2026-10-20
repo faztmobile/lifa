@@ -164,7 +164,6 @@ private fun Home() = Screen(tab = "home") {
     }
     Section("Needs your attention")
     LifaListRow("Name an alternate guardian", "Adds 3 points", RowIndicator.Warning, onClick = {})
-    LifaListRow("Passport expires in 41 days", "Upload the new one before 17 Nov 2026", RowIndicator.Warning, onClick = {})
 }
 
 // 3 · Will builder: divide the residue (FR-WIL-003, FR-WIL-007)
