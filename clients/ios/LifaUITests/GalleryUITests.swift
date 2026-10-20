@@ -50,6 +50,19 @@ final class GalleryUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1")
     }
 
+    /// End-to-end demo: launches each journey screen (`-LifaDemo <id>`) and attaches a full-screen screenshot.
+    func testDemoScreenScreenshots() {
+        let ids = ["signup", "home", "will", "assets", "vault", "emergency", "checkin", "activation", "executor", "plans"]
+        for (n, id) in ids.enumerated() {
+            let app = XCUIApplication()
+            app.launchArguments += ["-LifaDemo", id]
+            app.launch()
+            XCTAssertTrue(app.staticTexts.firstMatch.waitForExistence(timeout: 10), "demo screen \(id) did not render")
+            attachScreenshot(app, "demo-\(String(format: "%02d", n + 1))-\(id)")
+            app.terminate()
+        }
+    }
+
     /// Screenshots of the whole gallery, scrolling until the last disclosure is on screen.
     private func capturePages(_ app: XCUIApplication, _ name: String, maxPages: Int = 40) {
         let last = app.staticTexts["Education only. Lifa does not recommend financial products."]

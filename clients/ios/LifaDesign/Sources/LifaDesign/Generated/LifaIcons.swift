@@ -27,6 +27,12 @@ public enum LifaIcon: String, CaseIterable, Sendable {
     case search
     case eyeOff
     case settings
+    case fingerprint
+    case idCard
+    case landmark
+    case car
+    case circle
+    case circleCheck
 
     public var image: Image { Image(rawValue, bundle: .module) }
 }

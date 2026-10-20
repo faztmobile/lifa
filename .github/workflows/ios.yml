@@ -30,7 +30,12 @@ jobs:
       - name: LifaDesign package tests
         run: xcodebuild test -scheme LifaDesign -destination 'platform=iOS Simulator,name=iPhone 16' -skipPackagePluginValidation
         working-directory: clients/ios/LifaDesign
-      - name: Gallery XCUITests (accessibility audit, dark, AX-XXXL)
+      - name: Boot the simulator with a clean status bar (9:41, full battery)
+        run: |
+          xcrun simctl boot "iPhone 16" || true
+          xcrun simctl bootstatus "iPhone 16" -b
+          xcrun simctl status_bar "iPhone 16" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+      - name: Gallery XCUITests (accessibility audit, dark, AX-XXXL, demo screens)
         run: xcodebuild test -project Lifa.xcodeproj -scheme Lifa -destination 'platform=iOS Simulator,name=iPhone 16' -resultBundlePath "$RUNNER_TEMP/ui.xcresult"
       - name: Export screenshots from the result bundle
         if: always()
@@ -48,7 +53,7 @@ jobs:
           for test in manifest:
               for a in test.get('attachments', []):
                   name = a.get('suggestedHumanReadableName', a['exportedFileName'])
-                  base = name.split('_')[0] if name.startswith('gallery-') else name
+                  base = name.split('_')[0] if name.startswith(('gallery-', 'demo-')) else name
                   if not base.endswith('.png'):
                       base = os.path.splitext(base)[0] + '.png'
                   if name.startswith('Complete Issue Description'):
@@ -73,6 +78,12 @@ jobs:
           ls "$DEST" | head -40
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          N=docs/design/screens/native-ios
+          if [ "$(ls "$RUNNER_TEMP"/ios-screens/demo-*.png 2>/dev/null | wc -l)" -ge 10 ]; then
+            mkdir -p "$N" && rm -f "$N"/*.png && cp "$RUNNER_TEMP"/ios-screens/demo-*.png "$N"/
+            for f in "$N"/*.png; do sips -Z 1400 "$f" >/dev/null; done
+            git add "$N"
+          fi
           git add "$DEST"
           git commit -m "CI: iOS gallery screenshots for ${GITHUB_SHA::7} [skip ci]" || exit 0
           for i in 1 2 3 4; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && exit 0; sleep $((i*5)); done

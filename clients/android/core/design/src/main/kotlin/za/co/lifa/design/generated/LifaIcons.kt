@@ -30,4 +30,10 @@ enum class LifaIcons(@DrawableRes val res: Int) {
     Search(R.drawable.lifa_ic_search),
     EyeOff(R.drawable.lifa_ic_eye_off),
     Settings(R.drawable.lifa_ic_settings),
+    Fingerprint(R.drawable.lifa_ic_fingerprint),
+    IdCard(R.drawable.lifa_ic_id_card),
+    Landmark(R.drawable.lifa_ic_landmark),
+    Car(R.drawable.lifa_ic_car),
+    Circle(R.drawable.lifa_ic_circle),
+    CircleCheck(R.drawable.lifa_ic_circle_check),
 }
