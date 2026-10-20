@@ -172,7 +172,7 @@ private fun Will() = Screen("My will · Step 3 of 7", back = true) {
     StepProgress(3, 7)
     Column(verticalArrangement = Arrangement.spacedBy(LifaSpace.space1)) {
         Text("Who inherits the rest?", style = LifaTheme.type.title1, color = LifaTheme.colors.text)
-        Lead("Everything not left as a specific gift is your residue. Shares must add up to exactly 100%.")
+        Lead("Your residue is everything not left as a gift. Shares must total 100%.")
     }
     LifaCard {
         AllocationRow("SM", AvatarTone.Green, "Sipho Mokoena", "Spouse", "50") {}
@@ -184,7 +184,7 @@ private fun Will() = Screen("My will · Step 3 of 7", back = true) {
             Text("100% allocated", style = LifaTheme.type.label, color = LifaTheme.colors.leafText)
         }
     }
-    LifaCallout("Lerato is under 18", CalloutTone.Warning, "Without a trust, her share may go to the Guardian’s Fund until she turns 18.") {
+    LifaCallout("Lerato is under 18", CalloutTone.Warning, "Her share may go to the Guardian’s Fund until she turns 18.") {
         LifaButton("Learn about the Guardian’s Fund", {}, variant = ButtonVariant.Text)
     }
     Fill()
@@ -290,7 +290,7 @@ private fun CheckIn() = Screen("Check-ins", tab = "account") {
         verticalArrangement = Arrangement.spacedBy(LifaSpace.space4),
     ) {
         Text("Are you OK, Thandi?", style = LifaTheme.type.title1, color = c.onHero)
-        Text("Your monthly check-in is due. One tap tells Lifa you’re well.", style = LifaTheme.type.body, color = c.onHero)
+        Text("One tap tells Lifa you’re well.", style = LifaTheme.type.body, color = c.onHero)
         Surface(color = c.heroAccent, shape = RoundedCornerShape(LifaRadius.md), modifier = Modifier.fillMaxWidth().height(LifaSize.buttonHeight)) {
             Box(contentAlignment = Alignment.Center) { Text("I’m still here", style = LifaTheme.type.button, color = c.hero) }
         }
@@ -334,7 +334,7 @@ private fun Executor() = Screen("Estate of T. Mokoena", back = true) {
     }
     LifaCard {
         listOf(
-            "Get certified copies of the death certificate" to true, "Find the original signed will" to true,
+            "Get certified death certificates" to true, "Find the original signed will" to true,
             "Notify banks and insurers · 3 of 5" to false, "Value the property" to false, "Send an update to beneficiaries" to false,
         ).forEach { (t, done) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LifaSpace.space3), modifier = Modifier.height(48.dp)) {

@@ -125,7 +125,7 @@ private struct WillDemo: View {
             StepProgress(current: 3, total: 7)
             VStack(alignment: .leading, spacing: LifaSpace.space1) {
                 Text("Who inherits the rest?").lifaText(LifaTypography.title1).foregroundStyle(LifaColor.text)
-                Lead("Everything not left as a specific gift is your residue. Shares must add up to exactly 100%.")
+                Lead("Your residue is everything not left as a gift. Shares must total 100%.")
             }
             LifaCard {
                 AllocationRow(initials: "SM", tone: .green, name: "Sipho Mokoena", detail: "Spouse", value: .constant("50"))
@@ -137,7 +137,7 @@ private struct WillDemo: View {
                     Text("100% allocated").lifaText(LifaTypography.label).fontWeight(.bold).foregroundStyle(LifaColor.leafText)
                 }
             }
-            LifaCallout("Lerato is under 18", tone: .warning, message: "Without a trust, her share may go to the Guardian’s Fund until she turns 18.") {
+            LifaCallout("Lerato is under 18", tone: .warning, message: "Her share may go to the Guardian’s Fund until she turns 18.") {
                 LifaButton("Learn about the Guardian’s Fund", variant: .text) {}
             }
             Spacer(minLength: 0)
@@ -245,7 +245,7 @@ private struct CheckInDemo: View {
         DemoChrome(title: "Check-ins", tab: "account") {
             VStack(alignment: .leading, spacing: LifaSpace.space4) {
                 Text("Are you OK, Thandi?").lifaText(LifaTypography.title1)
-                Text("Your monthly check-in is due. One tap tells Lifa you’re well.").lifaText(LifaTypography.body)
+                Text("One tap tells Lifa you’re well.").lifaText(LifaTypography.body)
                 Text("I’m still here").lifaText(LifaTypography.button).foregroundStyle(LifaColor.hero)
                     .frame(maxWidth: .infinity).frame(height: LifaSize.buttonHeight)
                     .background(LifaColor.heroAccent, in: RoundedRectangle(cornerRadius: LifaRadius.md, style: .continuous))
@@ -290,7 +290,7 @@ private struct ActivationDemo: View {
 // 9 · Executor workspace (FR-EXE-001..008)
 private struct ExecutorDemo: View {
     private let tasks: [(String, Bool)] = [
-        ("Get certified copies of the death certificate", true), ("Find the original signed will", true),
+        ("Get certified death certificates", true), ("Find the original signed will", true),
         ("Notify banks and insurers · 3 of 5", false), ("Value the property", false), ("Send an update to beneficiaries", false),
     ]
     var body: some View {
