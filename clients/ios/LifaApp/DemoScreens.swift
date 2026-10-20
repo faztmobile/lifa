@@ -56,12 +56,13 @@ private struct DemoChrome<Content: View>: View {
     }
 }
 
+// Demo text keeps its full height: on smaller iPhones the column is tight, and SwiftUI would otherwise truncate it.
 private struct Lead: View { let text: String; init(_ t: String) { text = t }
-    var body: some View { Text(text).lifaText(LifaTypography.body).foregroundStyle(LifaColor.textMuted) } }
+    var body: some View { Text(text).lifaText(LifaTypography.body).foregroundStyle(LifaColor.textMuted).fixedSize(horizontal: false, vertical: true) } }
 private struct DemoSection: View { let text: String; init(_ t: String) { text = t }
-    var body: some View { Text(text).lifaText(LifaTypography.bodyStrong).foregroundStyle(LifaColor.text) } }
+    var body: some View { Text(text).lifaText(LifaTypography.bodyStrong).foregroundStyle(LifaColor.text).fixedSize(horizontal: false, vertical: true) } }
 private struct Caption: View { let text: String; init(_ t: String) { text = t }
-    var body: some View { Text(text).lifaText(LifaTypography.caption).foregroundStyle(LifaColor.textMuted) } }
+    var body: some View { Text(text).lifaText(LifaTypography.caption).foregroundStyle(LifaColor.textMuted).fixedSize(horizontal: false, vertical: true) } }
 
 // 1 · Sign up: verify the mobile number (FR-ONB-002)
 private struct SignUpDemo: View {
@@ -140,7 +141,7 @@ private struct WillDemo: View {
             LifaCallout("Lerato is under 18", tone: .warning, message: "Her share may go to the Guardian’s Fund until she turns 18.") {
                 LifaButton("Learn about the Guardian’s Fund", variant: .text) {}
             }
-            .fixedSize(horizontal: false, vertical: true) // keep its full height; the column above is tight on smaller iPhones
+            .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             HStack(spacing: LifaSpace.space3) {
                 LifaButton("Back", variant: .secondary) {}.fixedSize()
