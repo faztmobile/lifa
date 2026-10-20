@@ -140,6 +140,7 @@ private struct WillDemo: View {
             LifaCallout("Lerato is under 18", tone: .warning, message: "Her share may go to the Guardian’s Fund until she turns 18.") {
                 LifaButton("Learn about the Guardian’s Fund", variant: .text) {}
             }
+            .fixedSize(horizontal: false, vertical: true) // keep its full height; the column above is tight on smaller iPhones
             Spacer(minLength: 0)
             HStack(spacing: LifaSpace.space3) {
                 LifaButton("Back", variant: .secondary) {}.fixedSize()
