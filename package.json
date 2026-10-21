@@ -11,6 +11,6 @@
   },
   "devDependencies": {
     "@redocly/cli": "2.59.0",
-    "style-dictionary": "5.6.0"
+    "style-dictionary": "5.7.0"
   }
 }
