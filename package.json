@@ -10,7 +10,7 @@
     "tokens:test": "node design/generators/contrast.mjs"
   },
   "devDependencies": {
-    "@redocly/cli": "2.59.0",
+    "@redocly/cli": "2.64.1",
     "style-dictionary": "5.6.0"
   }
 }
